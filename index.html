@@ -1,18 +1,33 @@
 <!DOCTYPE html>
 <html lang="fr">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <meta name="apple-mobile-web-app-capable" content="yes">
-    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-    <meta name="apple-mobile-web-app-title" content="Solène">
-    <title>Solène</title>
-    <link rel="stylesheet" href="style.css">
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Solène">
+<title>Solène</title>
+<script src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js"></script>
+<link rel="stylesheet" href="style.css">
 </head>
 <body>
-    <div id="app">
-        <p>Chargement...</p>
-    </div>
-    <script src="app.js"></script>
+<div id="app"></div>
+<div id="ai-btn" onclick="toggleAI()">
+<i data-lucide="sparkles"></i>
+</div>
+<div id="ai-panel">
+<div id="ai-header">
+<span id="ai-context-label">Assistant</span>
+<button onclick="toggleAI()" id="ai-close"><i data-lucide="x"></i></button>
+</div>
+<div id="ai-messages"></div>
+<div id="ai-input-area">
+<input type="text" id="ai-input" placeholder="Pose ta question..." />
+<button onclick="sendAIMessage()" id="ai-send"><i data-lucide="send"></i></button>
+</div>
+</div>
+<div id="ai-overlay" onclick="toggleAI()"></div>
+<script src="app.js"></script>
 </body>
 </html>
