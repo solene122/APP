@@ -810,25 +810,6 @@ if (e.key === "Enter") classifierContenu();
 });
 });
 
-// ============================================
-// QUICK ADD HTML (injecté dans le body)
-// ============================================
-document.addEventListener("DOMContentLoaded", function() {
-const overlay = document.getElementById("quick-add-overlay");
-overlay.innerHTML =
-'<div id="quick-add-panel">' +
-'<h3>✨ Ajouter rapidement</h3>' +
-'<input type="text" id="quick-add-input" placeholder="Une idée, un livre, un défi, un voyage..." />' +
-'<div class="quick-add-actions">' +
-'<button class="btn-secondary" onclick="closeQuickAdd()">Annuler</button>' +
-'<button class="btn-primary" onclick="classifierContenu()">Ajouter ✨</button>' +
-'</div>' +
-'</div>';
-
-document.getElementById("quick-add-input").addEventListener("keydown", function(e) {
-if (e.key === "Enter") classifierContenu();
-});
-});
 
 // ============================================
 // LANCEMENT

@@ -222,10 +222,21 @@ min-width: 50px !important;
 padding: 0 !important;
 box-shadow: 0 4px 20px rgba(124, 106, 247, 0.5);
 margin-bottom: 4px;
+display: flex !important;
+align-items: center !important;
+justify-content: center !important;
 }
 
-.nav-add svg { width: 24px !important; height: 24px !important; }
-.nav-add span { display: none !important; }
+.nav-add svg {
+width: 24px !important;
+height: 24px !important;
+margin: 0 !important;
+}
+
+.nav-add span {
+display: none !important;
+}
+
 
 /* ---- BOUTON IA FLOTTANT ---- */
 #ai-btn {
