@@ -4,7 +4,7 @@
 const CONFIG = {
 prenom: "Solène",
 meteoApiKey: "REMPLACE_PAR_TA_CLE_METEO",
-geminiApiKey: "AIzaSyAf8iGPFDqqglWqG0azx9pSjVFtX0V0jNI"
+geminiApiKey: "AIzaSyD7H0PDSy5rvNCwSaD1twYqQutIKee2E9o"
 };
 
 let currentPage = "accueil";
@@ -670,7 +670,7 @@ btn.textContent = "Analyse...";
 btn.disabled = true;
 
 try {
-const res = await fetch("https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=" + CONFIG.geminiApiKey, {
+const res = await fetch("https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=" + CONFIG.geminiApiKey, {
 method: "POST",
 headers: { "Content-Type": "application/json" },
 body: JSON.stringify({
@@ -780,7 +780,7 @@ const contents = [
 ...aiMessages
 ];
 
-const res = await fetch("https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=" + CONFIG.geminiApiKey, {
+const res = await fetch("https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=" + CONFIG.geminiApiKey, {
 method: "POST",
 headers: { "Content-Type": "application/json" },
 body: JSON.stringify({ contents: contents })
