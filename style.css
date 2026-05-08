@@ -403,3 +403,8 @@ padding: 20px 24px 8px;
 /* ---- SCROLL ---- */
 #app { overflow-y: auto; -webkit-overflow-scrolling: touch; }
 ::-webkit-scrollbar { display: none; }
+
+input[type="number"] {
+  min-width: 0;
+  width: 100%;
+}
