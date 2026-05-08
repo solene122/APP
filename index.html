@@ -28,6 +28,16 @@
 </div>
 </div>
 <div id="ai-overlay" onclick="toggleAI()"></div>
+<div id="quick-add-overlay" onclick="closeQuickAdd()">
+    <div id="quick-add-panel" onclick="event.stopPropagation()">
+        <h3>✨ Ajouter rapidement</h3>
+        <input type="text" id="quick-add-input" placeholder="Une idée, un livre, un défi, un voyage..." />
+        <div class="quick-add-actions">
+            <button class="btn-secondary" onclick="closeQuickAdd()">Annuler</button>
+            <button class="btn-primary" onclick="classifierContenu()">Ajouter ✨</button>
+        </div>
+    </div>
+</div>
 <script src="app.js"></script>
 </body>
 </html>
