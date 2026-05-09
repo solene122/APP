@@ -408,3 +408,22 @@ input[type="number"] {
   min-width: 0;
   width: 100%;
 }
+
+body.matin-nuageux .card,
+body.journee-beau .card,
+body.journee-nuageux .card {
+  background: rgba(0, 0, 0, 0.15);
+  border-color: rgba(0, 0, 0, 0.15);
+}
+
+body.matin-nuageux,
+body.journee-beau,
+body.journee-nuageux {
+  color: #1a1a2e;
+}
+
+body.matin-nuageux .card,
+body.journee-beau .card,
+body.journee-nuageux .card {
+  color: #1a1a2e;
+}

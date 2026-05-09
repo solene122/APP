@@ -1,11 +1,3 @@
-// ============================================
-// CONFIG
-// ============================================
-const CONFIG = {
-prenom: "Solène",
-meteoApiKey: "REMPLACE_PAR_TA_CLE_METEO",
-geminiApiKey: "AIzaSyD7H0PDSy5rvNCwSaD1twYqQutIKee2E9o"
-};
 
 let currentPage = "accueil";
 
@@ -43,15 +35,17 @@ return "Bonne nuit";
 // MÉTÉO
 // ============================================
 async function fetchMeteo() {
-try {
-if (CONFIG.meteoApiKey === "REMPLACE_PAR_TA_CLE_METEO") return null;
-const pos = await new Promise((resolve, reject) => {
-navigator.geolocation.getCurrentPosition(resolve, reject, {timeout: 5000});
-});
-const url = "https://api.openweathermap.org/data/2.5/weather?lat=" + pos.coords.latitude + "&lon=" + pos.coords.longitude + "&appid=" + CONFIG.meteoApiKey + "&units=metric&lang=fr";
-const res = await fetch(url);
-return await res.json();
-} catch (e) { return null; }
+  try {
+    if (!KEYS.meteo || KEYS.meteo === "TA_CLE_METEO_ICI") return null;
+    const pos = await new Promise((resolve, reject) => {
+      navigator.geolocation.getCurrentPosition(resolve, reject, {timeout: 5000});
+    });
+    const url = "https://api.openweathermap.org/data/2.5/weather?lat=" + pos.coords.latitude + "&lon=" + pos.coords.longitude + "&appid=" + KEYS.meteo + "&units=metric&lang=fr";
+    const res = await fetch(url);
+    const data = await res.json();
+    if (data.cod && data.cod !== 200) return null;
+    return data;
+  } catch (e) { return null; }
 }
 
 function getMeteoIcon(meteo) {
@@ -212,7 +206,7 @@ const isFavori = getBibliotheque().find(function(m) { return m.mot === motDuJour
 app.innerHTML =
 '<div class="header">' +
 '<div class="greeting">' + getSalutation(heure) + '</div>' +
-'<div class="name">' + CONFIG.prenom + ' ✨</div>' +
+'<div class="name">' + "Solène" + ' ✨</div>' +
 '<div class="date">' + dateStr + '</div>' +
 '</div>' +
 
@@ -486,7 +480,7 @@ async function genererProgrammeIA() {
   showToast("✨ L'IA génère ton programme...");
 
   try {
-    const res = await fetch("https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=" + CONFIG.geminiApiKey, {
+    const res = await fetch("https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=" + KEYS.gemini, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -719,7 +713,7 @@ async function terminerSeance() {
       }).join(", ");
     }).join(" | ");
 
-    const res = await fetch("https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=" + CONFIG.geminiApiKey, {
+    const res = await fetch("https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=" + KEYS.gemini, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -1189,7 +1183,7 @@ btn.textContent = "Analyse...";
 btn.disabled = true;
 
 try {
-const res = await fetch("https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=" + CONFIG.geminiApiKey, {
+const res = await fetch("https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=" + KEYS.gemini, {
 method: "POST",
 headers: { "Content-Type": "application/json" },
 body: JSON.stringify({
@@ -1299,7 +1293,7 @@ const contents = [
 ...aiMessages
 ];
 
-const res = await fetch("https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=" + CONFIG.geminiApiKey, {
+const res = await fetch("https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=" + KEYS.gemini, {
 method: "POST",
 headers: { "Content-Type": "application/json" },
 body: JSON.stringify({ contents: contents })
