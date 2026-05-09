@@ -409,21 +409,12 @@ input[type="number"] {
   width: 100%;
 }
 
-body.matin-nuageux .card,
-body.journee-beau .card,
-body.journee-nuageux .card {
-  background: rgba(0, 0, 0, 0.15);
-  border-color: rgba(0, 0, 0, 0.15);
+body.journee-beau::before {
+  filter: brightness(0.85);
 }
 
-body.matin-nuageux,
-body.journee-beau,
-body.journee-nuageux {
-  color: #1a1a2e;
-}
-
-body.matin-nuageux .card,
 body.journee-beau .card,
-body.journee-nuageux .card {
-  color: #1a1a2e;
+body.matin-nuageux .card {
+  background: rgba(0, 0, 0, 0.2);
+  border-color: rgba(0, 0, 0, 0.1);
 }

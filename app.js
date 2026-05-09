@@ -364,14 +364,18 @@ function renderSport() {
     '<div class="card">' +
       '<div class="word-title"><i data-lucide="clock"></i> Dernières séances</div>' +
       (seances.length === 0 ?
-        '<div style="opacity:0.6;font-size:14px;margin-top:8px">Aucune séance encore — lance-toi ! 💪</div>' :
-        seances.slice(0, 3).map(function(s) {
-          return '<div style="padding:10px 0;border-bottom:1px solid rgba(255,255,255,0.1)">' +
-            '<div style="font-size:14px;font-weight:600">' + s.nom + '</div>' +
-            '<div style="font-size:12px;opacity:0.6">' + s.date + ' · ' + s.exercices.length + ' exercices · ' + getTotalSeriesSeance(s) + ' séries</div>' +
-          '</div>';
-        }).join("")
-      ) +
+  '<div style="opacity:0.6;font-size:14px;margin-top:8px">Aucune séance encore — lance-toi ! 💪</div>' :
+  seances.slice(0, 5).map(function(s, i) {
+    return '<div style="padding:10px 0;border-bottom:1px solid rgba(255,255,255,0.1);cursor:pointer;user-select:none" ' +
+      'oncontextmenu="event.preventDefault();afficherMenuSeance(' + i + ')" ' +
+      'ontouchstart="startLongPress(\'seance\',' + i + ')" ' +
+      'ontouchend="cancelLongPress()" ' +
+      'ontouchmove="cancelLongPress()">' +
+      '<div style="font-size:14px;font-weight:600">' + s.nom + '</div>' +
+      '<div style="font-size:12px;opacity:0.6">' + s.date + ' · ' + s.exercices.length + ' exercices · ' + getTotalSeriesSeance(s) + ' séries</div>' +
+    '</div>';
+  }).join("")
+) +
     '</div>' +
 
     // Bibliothèque exercices
@@ -450,6 +454,168 @@ function getStreakJours() {
 }
 
 // ============================================
+// APPUI LONG + MENUS CONTEXTUELS
+// ============================================
+var longPressTimer = null;
+
+function startLongPress(type, index) {
+  cancelLongPress();
+  longPressTimer = setTimeout(function() {
+    if (type === "programme") afficherMenuProgramme(index);
+    if (type === "seance") afficherMenuSeance(index);
+  }, 600);
+}
+
+function cancelLongPress() {
+  if (longPressTimer) {
+    clearTimeout(longPressTimer);
+    longPressTimer = null;
+  }
+}
+
+function afficherMenuProgramme(index) {
+  const programme = getProgrammes()[index];
+  if (!programme) return;
+  afficherMenuContextuel(
+    programme.nom,
+    [
+      { label: "⚡ Lancer ce programme", action: function() { lancerProgramme(index); } },
+      { label: "✏️ Renommer", action: function() { renommerProgramme(index); } },
+      { label: "🗑️ Supprimer", action: function() { supprimerProgramme(index); }, danger: true }
+    ]
+  );
+}
+
+function afficherMenuSeance(index) {
+  const seance = getSeances()[index];
+  if (!seance) return;
+  afficherMenuContextuel(
+    seance.nom,
+    [
+      { label: "👁️ Voir le détail", action: function() { voirDetailSeance(index); } },
+      { label: "✏️ Renommer", action: function() { renommerSeance(index); } },
+      { label: "🗑️ Supprimer", action: function() { supprimerSeance(index); }, danger: true }
+    ]
+  );
+}
+
+function afficherMenuContextuel(titre, actions) {
+  const overlay = document.createElement("div");
+  overlay.style.cssText = "position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:500;backdrop-filter:blur(4px);display:flex;align-items:flex-end;justify-content:center;";
+
+  const panel = document.createElement("div");
+  panel.style.cssText = "width:100%;max-width:430px;background:rgba(20,16,50,0.97);border-radius:28px 28px 0 0;padding:20px;border:1px solid rgba(255,255,255,0.15);padding-bottom:calc(20px + env(safe-area-inset-bottom));";
+
+  panel.innerHTML =
+    '<div style="font-size:13px;opacity:0.5;text-align:center;margin-bottom:16px;padding-bottom:12px;border-bottom:1px solid rgba(255,255,255,0.1)">' + titre + '</div>' +
+    actions.map(function(a, i) {
+      return '<button id="ctx_action_' + i + '" style="width:100%;background:' + (a.danger ? 'rgba(255,80,80,0.15)' : 'rgba(255,255,255,0.08)') + ';border:none;color:' + (a.danger ? '#ff6b6b' : 'white') + ';padding:15px;border-radius:14px;font-size:15px;cursor:pointer;margin-bottom:8px;text-align:left;font-family:var(--font)">' + a.label + '</button>';
+    }).join("") +
+    '<button id="ctx_cancel" style="width:100%;background:rgba(255,255,255,0.05);border:none;color:rgba(255,255,255,0.5);padding:15px;border-radius:14px;font-size:15px;cursor:pointer;font-family:var(--font)">Annuler</button>';
+
+  overlay.appendChild(panel);
+  document.body.appendChild(overlay);
+
+  actions.forEach(function(a, i) {
+    document.getElementById("ctx_action_" + i).onclick = function() {
+      document.body.removeChild(overlay);
+      a.action();
+    };
+  });
+
+  document.getElementById("ctx_cancel").onclick = function() {
+    document.body.removeChild(overlay);
+  };
+
+  overlay.onclick = function(e) {
+    if (e.target === overlay) document.body.removeChild(overlay);
+  };
+}
+
+function supprimerProgramme(index) {
+  const programmes = getProgrammes();
+  const nom = programmes[index].nom;
+  programmes.splice(index, 1);
+  localStorage.setItem("programmes", JSON.stringify(programmes));
+  showToast("🗑️ \"" + nom + "\" supprimé");
+  renderSport();
+}
+
+function renommerProgramme(index) {
+  const programmes = getProgrammes();
+  const nouveau = prompt("Nouveau nom :", programmes[index].nom);
+  if (nouveau) {
+    programmes[index].nom = nouveau;
+    localStorage.setItem("programmes", JSON.stringify(programmes));
+    showToast("✅ Renommé !");
+    renderSport();
+  }
+}
+
+function supprimerSeance(index) {
+  const seances = getSeances();
+  const nom = seances[index].nom;
+  seances.splice(index, 1);
+  localStorage.setItem("seances", JSON.stringify(seances));
+  showToast("🗑️ \"" + nom + "\" supprimée");
+  renderSport();
+}
+
+function renommerSeance(index) {
+  const seances = getSeances();
+  const nouveau = prompt("Nouveau nom :", seances[index].nom);
+  if (nouveau) {
+    seances[index].nom = nouveau;
+    localStorage.setItem("seances", JSON.stringify(seances));
+    showToast("✅ Renommée !");
+    renderSport();
+  }
+}
+
+function voirDetailSeance(index) {
+  const seance = getSeances()[index];
+  if (!seance) return;
+  const app = document.getElementById("app");
+  app.innerHTML =
+    '<div class="header">' +
+      '<button onclick="renderSport()" style="background:rgba(255,255,255,0.15);border:none;color:white;padding:8px 16px;border-radius:20px;font-size:14px;cursor:pointer;margin-bottom:12px;">← Retour</button>' +
+      '<div class="name" style="font-size:24px">' + seance.nom + '</div>' +
+      '<div class="date">' + seance.date + ' · ' + (seance.duree || "--") + ' min</div>' +
+    '</div>' +
+    '<div class="card">' +
+      '<div class="summary-grid">' +
+        '<div class="summary-item"><div class="value">' + seance.exercices.length + '</div><div class="label">Exercices</div></div>' +
+        '<div class="summary-item"><div class="value">' + getTotalSeriesSeance(seance) + '</div><div class="label">Séries</div></div>' +
+        '<div class="summary-item"><div class="value">' + (seance.duree || "--") + '</div><div class="label">Minutes</div></div>' +
+        '<div class="summary-item"><div class="value">' + getRPEMoyen(seance) + '</div><div class="label">RPE moyen</div></div>' +
+      '</div>' +
+    '</div>' +
+    seance.exercices.map(function(ex) {
+      return '<div class="card">' +
+        '<div style="display:flex;justify-content:space-between;margin-bottom:8px">' +
+          '<div style="font-size:15px;font-weight:700">' + ex.nom + '</div>' +
+          '<div style="font-size:11px;background:rgba(124,106,247,0.3);padding:4px 10px;border-radius:10px">' + (ex.muscle || "") + '</div>' +
+        '</div>' +
+        ex.series.map(function(s, si) {
+          return '<div style="padding:6px 0;border-bottom:1px solid rgba(255,255,255,0.08);font-size:13px">' +
+            'Série ' + (si+1) + ' : ' +
+            (s.duree ? s.duree + 's' : s.reps + ' reps' + (s.poids ? ' · ' + s.poids + 'kg' : '')) +
+            (s.rpe ? ' · RPE ' + s.rpe : '') +
+          '</div>';
+        }).join("") +
+      '</div>';
+    }).join("") +
+    (seance.analyseIA ?
+      '<div class="card">' +
+        '<div class="word-title"><i data-lucide="brain"></i> Analyse IA</div>' +
+        '<div style="font-size:14px;line-height:1.6;margin-top:8px">' + seance.analyseIA + '</div>' +
+      '</div>' : ""
+    ) +
+    buildNav("sport");
+  lucide.createIcons();
+}
+
+// ============================================
 // PROGRAMMES
 // ============================================
 function getProgrammes() {
@@ -462,7 +628,12 @@ function getProgrammesHTML() {
     return '<div style="opacity:0.6;font-size:14px">Aucun programme — génère-en un avec l\'IA ! ✨</div>';
   }
   return programmes.map(function(p, i) {
-    return '<div style="padding:10px 0;border-bottom:1px solid rgba(255,255,255,0.1);cursor:pointer" onclick="lancerProgramme(' + i + ')">' +
+    return '<div style="padding:10px 0;border-bottom:1px solid rgba(255,255,255,0.1);cursor:pointer;user-select:none" ' +
+      'onclick="lancerProgramme(' + i + ')" ' +
+      'oncontextmenu="event.preventDefault();afficherMenuProgramme(' + i + ')" ' +
+      'ontouchstart="startLongPress(\'programme\',' + i + ')" ' +
+      'ontouchend="cancelLongPress()" ' +
+      'ontouchmove="cancelLongPress()">' +
       '<div style="font-size:14px;font-weight:600">' + p.nom + '</div>' +
       '<div style="font-size:12px;opacity:0.6">' + p.jours.length + ' jours · ' + p.objectif + '</div>' +
     '</div>';
