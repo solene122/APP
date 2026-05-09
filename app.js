@@ -532,6 +532,46 @@ function afficherMenuContextuel(titre, actions) {
   };
 }
 
+function afficherInput(titre, placeholder, valeurDefaut, callback) {
+  const overlay = document.createElement("div");
+  overlay.style.cssText = "position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:500;backdrop-filter:blur(4px);display:flex;align-items:flex-end;justify-content:center;";
+
+  const panel = document.createElement("div");
+  panel.style.cssText = "width:100%;max-width:430px;background:rgba(20,16,50,0.97);border-radius:28px 28px 0 0;padding:24px;border:1px solid rgba(255,255,255,0.15);padding-bottom:calc(24px + env(safe-area-inset-bottom));";
+
+  panel.innerHTML =
+    '<div style="font-size:17px;font-weight:700;margin-bottom:16px">' + titre + '</div>' +
+    '<input id="modal-input" type="text" placeholder="' + placeholder + '" value="' + (valeurDefaut || "") + '" style="width:100%;background:rgba(255,255,255,0.1);border:1px solid rgba(255,255,255,0.2);border-radius:16px;padding:14px 16px;color:white;font-size:15px;outline:none;font-family:var(--font);margin-bottom:12px;" />' +
+    '<div style="display:flex;gap:10px">' +
+      '<button id="modal-cancel" style="flex:1;background:rgba(255,255,255,0.08);border:none;color:white;padding:14px;border-radius:14px;font-size:15px;cursor:pointer;font-family:var(--font)">Annuler</button>' +
+      '<button id="modal-confirm" style="flex:1;background:linear-gradient(135deg,#7c6af7,#f953c6);border:none;color:white;padding:14px;border-radius:14px;font-size:15px;font-weight:600;cursor:pointer;font-family:var(--font)">Confirmer</button>' +
+    '</div>';
+
+  overlay.appendChild(panel);
+  document.body.appendChild(overlay);
+
+  const input = document.getElementById("modal-input");
+  setTimeout(function() { input.focus(); }, 100);
+
+  document.getElementById("modal-confirm").onclick = function() {
+    const valeur = input.value.trim();
+    document.body.removeChild(overlay);
+    if (valeur) callback(valeur);
+  };
+
+  document.getElementById("modal-cancel").onclick = function() {
+    document.body.removeChild(overlay);
+  };
+
+  input.addEventListener("keydown", function(e) {
+    if (e.key === "Enter") {
+      const valeur = input.value.trim();
+      document.body.removeChild(overlay);
+      if (valeur) callback(valeur);
+    }
+  });
+}
+
 function supprimerProgramme(index) {
   const programmes = getProgrammes();
   const nom = programmes[index].nom;
@@ -543,13 +583,12 @@ function supprimerProgramme(index) {
 
 function renommerProgramme(index) {
   const programmes = getProgrammes();
-  const nouveau = prompt("Nouveau nom :", programmes[index].nom);
-  if (nouveau) {
+  afficherInput("Renommer le programme", "Nouveau nom...", programmes[index].nom, function(nouveau) {
     programmes[index].nom = nouveau;
     localStorage.setItem("programmes", JSON.stringify(programmes));
     showToast("✅ Renommé !");
     renderSport();
-  }
+  });
 }
 
 function supprimerSeance(index) {
@@ -563,13 +602,12 @@ function supprimerSeance(index) {
 
 function renommerSeance(index) {
   const seances = getSeances();
-  const nouveau = prompt("Nouveau nom :", seances[index].nom);
-  if (nouveau) {
+  afficherInput("Renommer la séance", "Nouveau nom...", seances[index].nom, function(nouveau) {
     seances[index].nom = nouveau;
     localStorage.setItem("seances", JSON.stringify(seances));
     showToast("✅ Renommée !");
     renderSport();
-  }
+  });
 }
 
 function voirDetailSeance(index) {
@@ -641,22 +679,28 @@ function getProgrammesHTML() {
 }
 
 async function genererProgrammeIA() {
-  const objectif = prompt("Quel est ton objectif ? (ex: prise de masse, force, remise en forme...)");
-  if (!objectif) return;
-  const seances = prompt("Combien de séances par semaine ?") || "3";
-  const niveau = prompt("Ton niveau ? (débutante, intermédiaire, avancée)") || "intermédiaire";
-  const materiel = prompt("Quel matériel as-tu ? (ex: haltères, barre, machines, élastiques, poids du corps...)") || "poids du corps";
-  const poids = prompt("Quels poids as-tu disponibles ? (ex: 5kg, 8kg, 10kg, 12kg ou 'aucun')") || "aucun";
+  afficherInput("Quel est ton objectif ?", "Ex: prise de masse, remise en forme...", "", function(objectif) {
+    afficherInput("Séances par semaine ?", "Ex: 3", "3", function(seances) {
+      afficherInput("Ton niveau ?", "débutante, intermédiaire, avancée", "intermédiaire", function(niveau) {
+        afficherInput("Quel matériel as-tu ?", "Ex: haltères, barre, poids du corps...", "", function(materiel) {
+          afficherInput("Quels poids disponibles ?", "Ex: 5kg, 8kg, 10kg ou aucun", "", function(poids) {
+            _lancerGenerationProgramme(objectif, seances, niveau, materiel, poids);
+          });
+        });
+      });
+    });
+  });
+}
 
+async function _lancerGenerationProgramme(objectif, seances, niveau, materiel, poids) {
   showToast("✨ L'IA génère ton programme...");
-
   try {
     const res = await fetch("https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=" + KEYS.gemini, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         contents: [{
-          parts: [{ text: "Génère un programme de musculation en JSON uniquement, sans markdown. Format: {\"nom\":\"string\",\"objectif\":\"string\",\"materiel\":\"string\",\"poidsDisponibles\":\"string\",\"jours\":[{\"nom\":\"string\",\"exercices\":[{\"nom\":\"string\",\"muscle\":\"string\",\"secondaires\":\"string\",\"series\":3,\"repetitions\":\"10-12\",\"repos\":90,\"poidsSuggere\":\"string\",\"conseils\":\"string\"}]}]}. Objectif: " + objectif + ", " + seances + " séances/semaine, niveau " + niveau + ", matériel: " + materiel + ", poids disponibles: " + poids + ". Adapte TOUS les exercices au matériel disponible. Pour chaque exercice suggère un poids de départ adapté au matériel. Réponds UNIQUEMENT avec le JSON." }]
+          parts: [{ text: "Génère un programme de musculation en JSON uniquement, sans markdown. Format: {\"nom\":\"string\",\"objectif\":\"string\",\"materiel\":\"string\",\"poidsDisponibles\":\"string\",\"jours\":[{\"nom\":\"string\",\"exercices\":[{\"nom\":\"string\",\"muscle\":\"string\",\"secondaires\":\"string\",\"series\":3,\"repetitions\":\"10-12\",\"repos\":90,\"poidsSuggere\":\"string\",\"conseils\":\"string\"}]}]}. Objectif: " + objectif + ", " + seances + " séances/semaine, niveau " + niveau + ", matériel: " + materiel + ", poids disponibles: " + poids + ". Adapte TOUS les exercices au matériel disponible. Réponds UNIQUEMENT avec le JSON." }]
         }]
       })
     });
@@ -859,11 +903,12 @@ function supprimerSerie(exIndex, serieIndex) {
 }
 
 function ajouterExerciceLibre() {
-  const nom = prompt("Nom de l'exercice :");
-  if (!nom) return;
-  const muscle = prompt("Muscle ciblé (ex: Pectoraux, Dos, Jambes...) :") || "";
-  seanceEnCours.exercices.push({ nom: nom, muscle: muscle, series: [] });
-  renderSeanceActive();
+  afficherInput("Nom de l'exercice", "Ex: Planche, Squat...", "", function(nom) {
+    afficherInput("Muscle ciblé", "Ex: Abdominaux, Jambes...", "", function(muscle) {
+      seanceEnCours.exercices.push({ nom: nom, muscle: muscle, series: [] });
+      renderSeanceActive();
+    });
+  });
 }
 
 async function terminerSeance() {
@@ -920,7 +965,7 @@ async function terminerSeance() {
         '<div style="font-size:14px;line-height:1.6;margin-top:8px;opacity:0.9">' + analyse + '</div>' +
       '</div>' +
       '<div style="padding:0 16px">' +
-        '<button onclick="renderSport()" style="width:100%;background:linear-gradient(135deg,#7c6af7,#f953c6);border:none;color:white;padding:16px;border-radius:16px;font-size:15px;font-weight:700;cursor:pointer;">Retour au dashboard</button>' +
+        '<button onclick="ajouterSport()" style="width:100%;background:linear-gradient(135deg,#7c6af7,#f953c6);border:none;color:white;padding:16px;border-radius:16px;font-size:15px;font-weight:700;cursor:pointer;">Retour au dashboard</button>' +
       '</div>' +
       buildNav("sport");
     lucide.createIcons();
@@ -931,6 +976,12 @@ async function terminerSeance() {
     seanceEnCours = null;
     renderSport();
   }
+}
+
+function ajouterSport() {
+  afficherInput("Ajouter un sport", "Ex: Yoga, Natation, Vélo...", "", function(nom) {
+    showToast("🏃 " + nom + " ajouté !");
+  });
 }
 
 function getRPEMoyen(seance) {
