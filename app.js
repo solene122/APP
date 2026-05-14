@@ -477,6 +477,17 @@ function startLongPress(type, index) {
     }
     else if (type === "moodboard") supprimerMoodboardItem(index);
     else if (type === "croquis") menuCroquis(index);
+    else if (type.startsWith("pratique_")) {
+  var pratId = type.replace("pratique_", "");
+  var pratiques = [
+    {id:"peinture", nom:"Peinture", emoji:"🖌️"},
+    {id:"aquarelle", nom:"Aquarelle", emoji:"💧"},
+    {id:"argile", nom:"Argile", emoji:"🏺"},
+    {id:"bijoux", nom:"Bijoux", emoji:"💍"}
+  ].concat(getPratiquesPerso());
+  var prat = pratiques.find(function(p) { return p.id === pratId; });
+  if (prat) menuPratique(prat.id, prat.nom, prat.emoji, ["peinture","aquarelle","argile","bijoux"].includes(prat.id));
+}
   }, 600);
 }
 
@@ -1188,7 +1199,13 @@ function renderCreatif() {
 }
 
 function pratiquCard(emoji, nom, id) {
-  return '<div onclick="renderPratique(\'' + id + '\',\'' + nom + '\',\'' + emoji + '\')" style="background:rgba(255,255,255,0.1);border:1px solid rgba(255,255,255,0.15);border-radius:16px;padding:16px;text-align:center;cursor:pointer;">' +
+  const estDefaut = ["peinture","aquarelle","argile","bijoux"].includes(id);
+  return '<div onclick="renderPratique(\'' + id + '\',\'' + nom + '\',\'' + emoji + '\')" ' +
+    'oncontextmenu="event.preventDefault();menuPratique(\'' + id + '\',\'' + nom + '\',\'' + emoji + '\',' + estDefaut + ')" ' +
+    'ontouchstart="startLongPress(\'pratique_' + id + '\',0)" ' +
+    'ontouchend="cancelLongPress()" ' +
+    'ontouchmove="cancelLongPress()" ' +
+    'style="background:rgba(255,255,255,0.1);border:1px solid rgba(255,255,255,0.15);border-radius:16px;padding:16px;text-align:center;cursor:pointer;user-select:none">' +
     '<div style="font-size:28px;margin-bottom:6px">' + emoji + '</div>' +
     '<div style="font-size:13px;font-weight:600">' + nom + '</div>' +
   '</div>';
@@ -1216,6 +1233,41 @@ function ajouterPratique() {
       renderCreatif();
     });
   });
+}
+
+function menuPratique(id, nom, emoji, estDefaut) {
+  const actions = [
+    { label: "📂 Ouvrir", action: function() { renderPratique(id, nom, emoji); } },
+    { label: "✏️ Renommer", action: function() {
+      afficherInput("Renommer", "Nouveau nom...", nom, function(nouveau) {
+        if (estDefaut) {
+          showToast("Les pratiques de base ne peuvent pas être renommées");
+          return;
+        }
+        const pratiques = getPratiquesPerso();
+        const p = pratiques.find(function(p) { return p.id === id; });
+        if (p) {
+          p.nom = nouveau;
+          localStorage.setItem("pratiques_perso", JSON.stringify(pratiques));
+          showToast("✅ Renommé !");
+          renderCreatif();
+        }
+      });
+    }}
+  ];
+  if (!estDefaut) {
+    actions.push({ label: "🗑️ Supprimer", action: function() {
+      const pratiques = getPratiquesPerso();
+      const index = pratiques.findIndex(function(p) { return p.id === id; });
+      if (index > -1) {
+        pratiques.splice(index, 1);
+        localStorage.setItem("pratiques_perso", JSON.stringify(pratiques));
+        showToast("🗑️ " + nom + " supprimé");
+        renderCreatif();
+      }
+    }, danger: true });
+  }
+  afficherMenuContextuel(emoji + " " + nom, actions);
 }
 
 function ajouterIdeeCreative() {
