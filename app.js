@@ -476,6 +476,7 @@ function startLongPress(type, index) {
       if (prat) afficherMenuProjetCreatif(pratId, index, prat.nom, prat.emoji);
     }
     else if (type === "moodboard") supprimerMoodboardItem(index);
+    else if (type === "croquis") menuCroquis(index);
   }, 600);
 }
 
@@ -1620,95 +1621,256 @@ function supprimerMoodboardItem(index) {
   ]);
 }
 
-function renderCroquis() {
-currentPage = "creatif";
-const app = document.getElementById("app");
-app.innerHTML =
-'<div class="header">' +
-'<button onclick="renderCreatif()" style="background:rgba(255,255,255,0.15);border:none;color:white;padding:8px 16px;border-radius:20px;font-size:14px;cursor:pointer;margin-bottom:12px;">← Retour</button>' +
-'<div class="name" style="font-size:28px">Croquis rapide ✏️</div>' +
-'</div>' +
-'<div class="card" style="padding:10px">' +
-'<canvas id="sketchCanvas" style="width:100%;border-radius:14px;background:rgba(255,255,255,0.95);touch-action:none;display:block;" height="400"></canvas>' +
-'</div>' +
-'<div style="display:flex;gap:10px;padding:0 16px;flex-wrap:wrap">' +
-'<button onclick="setCouleur(\'#1a1a2e\')" style="background:#1a1a2e;border:2px solid white;width:36px;height:36px;border-radius:50%;cursor:pointer;"></button>' +
-'<button onclick="setCouleur(\'#e63946\')" style="background:#e63946;border:none;width:36px;height:36px;border-radius:50%;cursor:pointer;"></button>' +
-'<button onclick="setCouleur(\'#2196F3\')" style="background:#2196F3;border:none;width:36px;height:36px;border-radius:50%;cursor:pointer;"></button>' +
-'<button onclick="setCouleur(\'#4CAF50\')" style="background:#4CAF50;border:none;width:36px;height:36px;border-radius:50%;cursor:pointer;"></button>' +
-'<button onclick="setCouleur(\'#FF9800\')" style="background:#FF9800;border:none;width:36px;height:36px;border-radius:50%;cursor:pointer;"></button>' +
-'<button onclick="setTaille(3)" style="background:rgba(255,255,255,0.2);border:none;color:white;padding:8px 14px;border-radius:20px;cursor:pointer;font-size:12px;">Fin</button>' +
-'<button onclick="setTaille(8)" style="background:rgba(255,255,255,0.2);border:none;color:white;padding:8px 14px;border-radius:20px;cursor:pointer;font-size:12px;">Moyen</button>' +
-'<button onclick="setTaille(16)" style="background:rgba(255,255,255,0.2);border:none;color:white;padding:8px 14px;border-radius:20px;cursor:pointer;font-size:12px;">Épais</button>' +
-'<button onclick="effacerCroquis()" style="background:rgba(255,100,100,0.3);border:none;color:white;padding:8px 14px;border-radius:20px;cursor:pointer;font-size:12px;">🗑️ Effacer</button>' +
-'</div>' +
-buildNav("creatif");
+function renderCroquis(croquisData) {
+  currentPage = "creatif";
+  const app = document.getElementById("app");
+  app.innerHTML =
+    '<div class="header">' +
+      '<button onclick="renderCreatif()" style="background:rgba(255,255,255,0.15);border:none;color:white;padding:8px 16px;border-radius:20px;font-size:14px;cursor:pointer;margin-bottom:12px;">← Retour</button>' +
+      '<div style="display:flex;justify-content:space-between;align-items:center">' +
+        '<div class="name" style="font-size:26px">Croquis ✏️</div>' +
+        '<button onclick="renderBiblioCroquis()" style="background:rgba(255,255,255,0.15);border:none;color:white;padding:8px 14px;border-radius:14px;font-size:13px;cursor:pointer;">📚 Bibliothèque</button>' +
+      '</div>' +
+    '</div>' +
 
-lucide.createIcons();
-setTimeout(initCanvas, 100);
+    '<div class="card" style="padding:10px">' +
+      '<canvas id="sketchCanvas" style="width:100%;border-radius:14px;background:rgba(255,255,255,0.95);touch-action:none;display:block;" height="400"></canvas>' +
+    '</div>' +
+
+    '<div style="display:flex;gap:8px;padding:0 16px;flex-wrap:wrap">' +
+      '<button onclick="setCouleur(\'#1a1a2e\')" style="background:#1a1a2e;border:2px solid white;width:36px;height:36px;border-radius:50%;cursor:pointer;flex-shrink:0"></button>' +
+      '<button onclick="setCouleur(\'#e63946\')" style="background:#e63946;border:none;width:36px;height:36px;border-radius:50%;cursor:pointer;flex-shrink:0"></button>' +
+      '<button onclick="setCouleur(\'#2196F3\')" style="background:#2196F3;border:none;width:36px;height:36px;border-radius:50%;cursor:pointer;flex-shrink:0"></button>' +
+      '<button onclick="setCouleur(\'#4CAF50\')" style="background:#4CAF50;border:none;width:36px;height:36px;border-radius:50%;cursor:pointer;flex-shrink:0"></button>' +
+      '<button onclick="setCouleur(\'#FF9800\')" style="background:#FF9800;border:none;width:36px;height:36px;border-radius:50%;cursor:pointer;flex-shrink:0"></button>' +
+      '<button onclick="setCouleur(\'#9C27B0\')" style="background:#9C27B0;border:none;width:36px;height:36px;border-radius:50%;cursor:pointer;flex-shrink:0"></button>' +
+      '<button onclick="setCouleur(\'#ffffff\')" style="background:#ffffff;border:1px solid rgba(255,255,255,0.3);width:36px;height:36px;border-radius:50%;cursor:pointer;flex-shrink:0"></button>' +
+    '</div>' +
+
+    '<div style="display:flex;gap:8px;padding:8px 16px;flex-wrap:wrap">' +
+      '<button onclick="setTaille(2)" style="background:rgba(255,255,255,0.15);border:none;color:white;padding:8px 14px;border-radius:20px;cursor:pointer;font-size:12px;">Fin</button>' +
+      '<button onclick="setTaille(6)" style="background:rgba(255,255,255,0.15);border:none;color:white;padding:8px 14px;border-radius:20px;cursor:pointer;font-size:12px;">Moyen</button>' +
+      '<button onclick="setTaille(14)" style="background:rgba(255,255,255,0.15);border:none;color:white;padding:8px 14px;border-radius:20px;cursor:pointer;font-size:12px;">Épais</button>' +
+      '<button onclick="activerGomme()" style="background:rgba(255,255,255,0.15);border:none;color:white;padding:8px 14px;border-radius:20px;cursor:pointer;font-size:12px;">⬜ Gomme</button>' +
+      '<button onclick="effacerCroquis()" style="background:rgba(255,100,100,0.3);border:none;color:white;padding:8px 14px;border-radius:20px;cursor:pointer;font-size:12px;">🗑️ Tout effacer</button>' +
+    '</div>' +
+
+    '<div style="display:flex;gap:10px;padding:0 16px 20px">' +
+      '<button onclick="sauvegarderCroquis()" style="flex:1;background:linear-gradient(135deg,#7c6af7,#f953c6);border:none;color:white;padding:14px;border-radius:16px;font-size:14px;font-weight:600;cursor:pointer;">💾 Sauvegarder</button>' +
+      '<button onclick="ajouterCroquisAuMoodboard()" style="flex:1;background:rgba(255,255,255,0.15);border:none;color:white;padding:14px;border-radius:16px;font-size:14px;cursor:pointer;">🖼️ Moodboard</button>' +
+    '</div>' +
+
+    buildNav("creatif");
+
+  lucide.createIcons();
+  setTimeout(function() {
+    initCanvas();
+    if (croquisData) chargerCroquis(croquisData);
+  }, 100);
+}
+
+function chargerCroquis(dataURL) {
+  const canvas = document.getElementById("sketchCanvas");
+  if (!canvas || !sketchCtx) return;
+  const img = new Image();
+  img.onload = function() { sketchCtx.drawImage(img, 0, 0); };
+  img.src = dataURL;
+}
+
+function activerGomme() {
+  if (sketchCtx) {
+    sketchCtx.globalCompositeOperation = "destination-out";
+    sketchCtx.lineWidth = 20;
+  }
+}
+
+function sauvegarderCroquis() {
+  const canvas = document.getElementById("sketchCanvas");
+  if (!canvas) return;
+  const dataURL = canvas.toDataURL("image/png");
+  afficherInput("Nom du croquis", "Ex: Esquisse portrait...", "Croquis du " + new Date().toLocaleDateString("fr-FR"), function(nom) {
+    const croquis = getBiblioCroquis();
+    croquis.unshift({ nom: nom, image: dataURL, date: new Date().toLocaleDateString("fr-FR") });
+    localStorage.setItem("biblio_croquis", JSON.stringify(croquis));
+    showToast("💾 Croquis sauvegardé !");
+  });
+}
+
+function ajouterCroquisAuMoodboard() {
+  const canvas = document.getElementById("sketchCanvas");
+  if (!canvas) return;
+  const dataURL = canvas.toDataURL("image/png");
+  afficherInput("Description pour le moodboard", "Ex: Esquisse de bijou...", "", function(desc) {
+    const items = JSON.parse(localStorage.getItem("moodboard") || "[]");
+    items.unshift({ type: "croquis", texte: desc, image: dataURL });
+    localStorage.setItem("moodboard", JSON.stringify(items));
+    showToast("🖼️ Ajouté au moodboard !");
+  });
+}
+
+function getBiblioCroquis() {
+  return JSON.parse(localStorage.getItem("biblio_croquis") || "[]");
+}
+
+function renderBiblioCroquis(depuis) {
+  currentPage = "creatif";
+  const app = document.getElementById("app");
+  const croquis = getBiblioCroquis();
+
+  app.innerHTML =
+    '<div class="header">' +
+      '<button onclick="' + (depuis === "moodboard" ? "renderMoodboard()" : "renderCroquis()") + '" style="background:rgba(255,255,255,0.15);border:none;color:white;padding:8px 16px;border-radius:20px;font-size:14px;cursor:pointer;margin-bottom:12px;">← Retour</button>' +
+      '<div class="name" style="font-size:26px">Mes croquis 📚</div>' +
+      '<div class="date">' + croquis.length + ' croquis sauvegardés</div>' +
+    '</div>' +
+
+    '<div style="padding:0 16px 8px">' +
+      '<button onclick="renderCroquis()" style="background:linear-gradient(135deg,#7c6af7,#f953c6);border:none;color:white;padding:12px 20px;border-radius:14px;font-size:14px;cursor:pointer;">✏️ Nouveau croquis</button>' +
+    '</div>' +
+
+    (croquis.length === 0 ?
+      '<div class="card" style="text-align:center;padding:40px;opacity:0.6">Aucun croquis sauvegardé pour l\'instant</div>' :
+      '<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;padding:0 16px">' +
+        croquis.map(function(c, i) {
+          return '<div style="background:rgba(255,255,255,0.1);border:1px solid rgba(255,255,255,0.15);border-radius:16px;overflow:hidden;cursor:pointer;user-select:none" ' +
+            'onclick="ouvrirCroquis(' + i + ',\'' + (depuis || "") + '\')" ' +
+            'oncontextmenu="event.preventDefault();menuCroquis(' + i + ')" ' +
+            'ontouchstart="startLongPress(\'croquis\',' + i + ')" ' +
+            'ontouchend="cancelLongPress()" ' +
+            'ontouchmove="cancelLongPress()">' +
+            '<img src="' + c.image + '" style="width:100%;height:100px;object-fit:cover;display:block;background:white" />' +
+            '<div style="padding:8px">' +
+              '<div style="font-size:12px;font-weight:600">' + c.nom + '</div>' +
+              '<div style="font-size:11px;opacity:0.5">' + c.date + '</div>' +
+            '</div>' +
+          '</div>';
+        }).join("") +
+      '</div>'
+    ) +
+    '<div style="height:20px"></div>' +
+    buildNav("creatif");
+  lucide.createIcons();
+}
+
+function ouvrirCroquis(index, depuis) {
+  const croquis = getBiblioCroquis()[index];
+  if (!croquis) return;
+  if (depuis === "moodboard") {
+    afficherMenuContextuel(croquis.nom, [
+      { label: "🖼️ Ajouter au moodboard", action: function() {
+        const items = JSON.parse(localStorage.getItem("moodboard") || "[]");
+        items.unshift({ type: "croquis", texte: croquis.nom, image: croquis.image });
+        localStorage.setItem("moodboard", JSON.stringify(items));
+        showToast("🖼️ Ajouté au moodboard !");
+        renderMoodboard();
+      }},
+      { label: "✏️ Modifier", action: function() { renderCroquis(croquis.image); } }
+    ]);
+  } else {
+    renderCroquis(croquis.image);
+  }
+}
+
+function menuCroquis(index) {
+  const croquis = getBiblioCroquis();
+  afficherMenuContextuel(croquis[index].nom, [
+    { label: "✏️ Modifier", action: function() { renderCroquis(croquis[index].image); } },
+    { label: "🖼️ Ajouter au moodboard", action: function() {
+      const items = JSON.parse(localStorage.getItem("moodboard") || "[]");
+      items.unshift({ type: "croquis", texte: croquis[index].nom, image: croquis[index].image });
+      localStorage.setItem("moodboard", JSON.stringify(items));
+      showToast("🖼️ Ajouté au moodboard !");
+    }},
+    { label: "🗑️ Supprimer", action: function() {
+      croquis.splice(index, 1);
+      localStorage.setItem("biblio_croquis", JSON.stringify(croquis));
+      showToast("🗑️ Croquis supprimé");
+      renderBiblioCroquis();
+    }, danger: true }
+  ]);
 }
 
 var sketchCtx, isDrawing = false, currentColor = "#1a1a2e", currentSize = 4;
 
 function initCanvas() {
-const canvas = document.getElementById("sketchCanvas");
-if (!canvas) return;
-canvas.width = canvas.offsetWidth;
-sketchCtx = canvas.getContext("2d");
-sketchCtx.strokeStyle = currentColor;
-sketchCtx.lineWidth = currentSize;
-sketchCtx.lineCap = "round";
-sketchCtx.lineJoin = "round";
+  const canvas = document.getElementById("sketchCanvas");
+  if (!canvas) return;
+  canvas.width = canvas.offsetWidth;
+  sketchCtx = canvas.getContext("2d");
+  sketchCtx.strokeStyle = currentColor;
+  sketchCtx.lineWidth = currentSize;
+  sketchCtx.lineCap = "round";
+  sketchCtx.lineJoin = "round";
+  sketchCtx.globalCompositeOperation = "source-over";
 
-canvas.addEventListener("touchstart", function(e) {
-e.preventDefault();
-isDrawing = true;
-const t = e.touches[0];
-const r = canvas.getBoundingClientRect();
-sketchCtx.beginPath();
-sketchCtx.moveTo(t.clientX - r.left, t.clientY - r.top);
-}, { passive: false });
+  canvas.addEventListener("touchstart", function(e) {
+    e.preventDefault();
+    isDrawing = true;
+    const t = e.touches[0];
+    const r = canvas.getBoundingClientRect();
+    const scaleX = canvas.width / r.width;
+    const scaleY = canvas.height / r.height;
+    sketchCtx.beginPath();
+    sketchCtx.moveTo((t.clientX - r.left) * scaleX, (t.clientY - r.top) * scaleY);
+  }, { passive: false });
 
-canvas.addEventListener("touchmove", function(e) {
-e.preventDefault();
-if (!isDrawing) return;
-const t = e.touches[0];
-const r = canvas.getBoundingClientRect();
-sketchCtx.lineTo(t.clientX - r.left, t.clientY - r.top);
-sketchCtx.stroke();
-}, { passive: false });
+  canvas.addEventListener("touchmove", function(e) {
+    e.preventDefault();
+    if (!isDrawing) return;
+    const t = e.touches[0];
+    const r = canvas.getBoundingClientRect();
+    const scaleX = canvas.width / r.width;
+    const scaleY = canvas.height / r.height;
+    sketchCtx.lineTo((t.clientX - r.left) * scaleX, (t.clientY - r.top) * scaleY);
+    sketchCtx.stroke();
+  }, { passive: false });
 
-canvas.addEventListener("touchend", function() { isDrawing = false; });
+  canvas.addEventListener("touchend", function() { isDrawing = false; });
 
-canvas.addEventListener("mousedown", function(e) {
-isDrawing = true;
-const r = canvas.getBoundingClientRect();
-sketchCtx.beginPath();
-sketchCtx.moveTo(e.clientX - r.left, e.clientY - r.top);
-});
-canvas.addEventListener("mousemove", function(e) {
-if (!isDrawing) return;
-const r = canvas.getBoundingClientRect();
-sketchCtx.lineTo(e.clientX - r.left, e.clientY - r.top);
-sketchCtx.stroke();
-});
-canvas.addEventListener("mouseup", function() { isDrawing = false; });
+  canvas.addEventListener("mousedown", function(e) {
+    isDrawing = true;
+    const r = canvas.getBoundingClientRect();
+    const scaleX = canvas.width / r.width;
+    const scaleY = canvas.height / r.height;
+    sketchCtx.beginPath();
+    sketchCtx.moveTo((e.clientX - r.left) * scaleX, (e.clientY - r.top) * scaleY);
+  });
+
+  canvas.addEventListener("mousemove", function(e) {
+    if (!isDrawing) return;
+    const r = canvas.getBoundingClientRect();
+    const scaleX = canvas.width / r.width;
+    const scaleY = canvas.height / r.height;
+    sketchCtx.lineTo((e.clientX - r.left) * scaleX, (e.clientY - r.top) * scaleY);
+    sketchCtx.stroke();
+  });
+
+  canvas.addEventListener("mouseup", function() { isDrawing = false; });
 }
 
 function setCouleur(c) {
-currentColor = c;
-if (sketchCtx) sketchCtx.strokeStyle = c;
+  currentColor = c;
+  if (sketchCtx) {
+    sketchCtx.globalCompositeOperation = "source-over";
+    sketchCtx.strokeStyle = c;
+    sketchCtx.lineWidth = currentSize;
+  }
 }
 
 function setTaille(t) {
-currentSize = t;
-if (sketchCtx) sketchCtx.lineWidth = t;
+  currentSize = t;
+  if (sketchCtx) {
+    sketchCtx.globalCompositeOperation = "source-over";
+    sketchCtx.lineWidth = t;
+  }
 }
 
 function effacerCroquis() {
-if (sketchCtx) sketchCtx.clearRect(0, 0, sketchCtx.canvas.width, sketchCtx.canvas.height);
+  if (sketchCtx) {
+    sketchCtx.globalCompositeOperation = "source-over";
+    sketchCtx.clearRect(0, 0, sketchCtx.canvas.width, sketchCtx.canvas.height);
+  }
 }
-
 // ============================================
 // MENU PRINCIPAL
 // ============================================
