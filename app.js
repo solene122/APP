@@ -1464,44 +1464,97 @@ function genererPalette() {
   }
 }
 
-function renderPalettes() {
-currentPage = "creatif";
-const app = document.getElementById("app");
-const data = localStorage.getItem("palettes_favoris");
-const favoris = data ? JSON.parse(data) : [];
+function renderPalettes(filtre) {
+  filtre = filtre || "nouvelles";
+  currentPage = "creatif";
+  const app = document.getElementById("app");
+  const favoris = JSON.parse(localStorage.getItem("palettes_favoris") || "[]");
 
-var palettesHTML = "";
-for (var i = 0; i < 8; i++) {
-const couleurs = genererPalette();
-const id = "palette_" + i;
-palettesHTML += '<div class="card" style="position:relative">' +
-'<div style="display:flex;gap:6px;margin-bottom:10px">' +
-couleurs.map(function(c) {
-return '<div style="flex:1;height:48px;border-radius:10px;background:' + c + '"></div>';
-}).join("") +
-'</div>' +
-'<div style="display:flex;justify-content:space-between;align-items:center">' +
-'<span style="font-size:12px;opacity:0.5">' + couleurs.join(" · ") + '</span>' +
-'<button onclick="togglePaletteFavori(this, \'' + couleurs.join(",") + '\')" style="background:none;border:none;color:white;font-size:20px;cursor:pointer;">☆</button>' +
-'</div>' +
-'</div>';
+  var contenu = "";
+
+  if (filtre === "favoris") {
+    contenu = favoris.length === 0 ?
+      '<div class="card" style="text-align:center;padding:40px;opacity:0.6">Aucune palette en favori pour l\'instant ⭐</div>' :
+      favoris.map(function(p, i) {
+        return '<div class="card" style="position:relative">' +
+          '<div style="display:flex;gap:6px;margin-bottom:10px">' +
+            p.couleurs.map(function(c) {
+              return '<div style="flex:1;height:48px;border-radius:10px;background:' + c + '"></div>';
+            }).join("") +
+          '</div>' +
+          '<div style="display:flex;justify-content:space-between;align-items:center">' +
+            '<span style="font-size:11px;opacity:0.5">' + (p.mode || "Palette") + '</span>' +
+            '<button onclick="retirerPaletteFavori(' + i + ')" style="background:none;border:none;color:white;font-size:20px;cursor:pointer;">⭐</button>' +
+          '</div>' +
+        '</div>';
+      }).join("");
+  } else {
+    var palettesHTML = "";
+    for (var i = 0; i < 8; i++) {
+      const couleurs = genererPalette();
+      const couleursStr = JSON.stringify(couleurs);
+      palettesHTML += '<div class="card" style="position:relative">' +
+        '<div style="display:flex;gap:6px;margin-bottom:10px">' +
+          couleurs.map(function(c) {
+            return '<div style="flex:1;height:48px;border-radius:10px;background:' + c + '"></div>';
+          }).join("") +
+        '</div>' +
+        '<div style="display:flex;justify-content:space-between;align-items:center">' +
+          '<span style="font-size:11px;opacity:0.5">' + couleurs.join(" · ") + '</span>' +
+          '<button onclick="ajouterPaletteFavori(this, ' + "'" + couleursStr + "'" + ')" style="background:none;border:none;color:white;font-size:20px;cursor:pointer;">☆</button>' +
+        '</div>' +
+      '</div>';
+    }
+    contenu = palettesHTML;
+  }
+
+  app.innerHTML =
+    '<div class="header">' +
+      '<button onclick="renderCreatif()" style="background:rgba(255,255,255,0.15);border:none;color:white;padding:8px 16px;border-radius:20px;font-size:14px;cursor:pointer;margin-bottom:12px;">← Retour</button>' +
+      '<div class="name" style="font-size:28px">Palettes 🎨</div>' +
+      '<div class="date">' + favoris.length + ' palettes en favori</div>' +
+    '</div>' +
+
+    '<div style="display:flex;gap:8px;padding:0 16px 8px">' +
+      '<button onclick="renderPalettes(\'nouvelles\')" class="filtre-btn ' + (filtre === "nouvelles" ? "actif" : "") + '">🎲 Nouvelles</button>' +
+      '<button onclick="renderPalettes(\'favoris\')" class="filtre-btn ' + (filtre === "favoris" ? "actif" : "") + '">⭐ Favoris (' + favoris.length + ')</button>' +
+    '</div>' +
+
+    (filtre === "nouvelles" ?
+      '<div style="padding:0 16px 8px">' +
+        '<button onclick="renderPalettes(\'nouvelles\')" style="background:rgba(255,255,255,0.15);border:none;color:white;padding:10px 20px;border-radius:14px;font-size:13px;cursor:pointer;">🔄 Regénérer</button>' +
+      '</div>' : ""
+    ) +
+
+    contenu +
+    '<div style="height:20px"></div>' +
+    buildNav("creatif");
+  lucide.createIcons();
 }
 
-app.innerHTML =
-'<div class="header">' +
-'<button onclick="renderCreatif()" style="background:rgba(255,255,255,0.15);border:none;color:white;padding:8px 16px;border-radius:20px;font-size:14px;cursor:pointer;margin-bottom:12px;">← Retour</button>' +
-'<div class="name" style="font-size:28px">Palettes</div>' +
-'</div>' +
-'<div style="padding:0 16px 8px">' +
-'<button onclick="renderPalettes()" class="filtre-btn actif" style="margin-right:8px">🎲 Nouvelles palettes</button>' +
-'</div>' +
-palettesHTML +
-buildNav("creatif");
-lucide.createIcons();
+function ajouterPaletteFavori(btn, couleursStr) {
+  try {
+    const couleurs = JSON.parse(couleursStr);
+    const favoris = JSON.parse(localStorage.getItem("palettes_favoris") || "[]");
+    favoris.unshift({ couleurs: couleurs, date: new Date().toLocaleDateString("fr-FR") });
+    localStorage.setItem("palettes_favoris", JSON.stringify(favoris));
+    btn.textContent = "⭐";
+    showToast("⭐ Palette sauvegardée !");
+  } catch(e) {
+    showToast("❌ Erreur");
+  }
+}
+
+function retirerPaletteFavori(index) {
+  const favoris = JSON.parse(localStorage.getItem("palettes_favoris") || "[]");
+  favoris.splice(index, 1);
+  localStorage.setItem("palettes_favoris", JSON.stringify(favoris));
+  showToast("🗑️ Palette retirée");
+  renderPalettes("favoris");
 }
 
 function togglePaletteFavori(btn, couleurs) {
-btn.textContent = btn.textContent === "☆" ? "⭐" : "☆";
+  btn.textContent = btn.textContent === "☆" ? "⭐" : "☆";
 }
 
 function ajouterIdeeCreative() {
