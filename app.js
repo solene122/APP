@@ -1388,15 +1388,78 @@ return '<div style="flex:1;height:36px;border-radius:8px;background:' + c + '"><
 }
 
 function genererPalette() {
-const palettes = [
-["#F8B4B4","#F4A0A0","#D48B8B","#B87575","#8B5555"],
-["#B4D4F8","#A0C4F4","#8BB4D4","#758EB8","#55688B"],
-["#B4F8D4","#A0F4C4","#8BD4A4","#75B888","#558B68"],
-["#F8F4B4","#F4E8A0","#D4C88B","#B8A875","#8B7D55"],
-["#E8B4F8","#DCA0F4","#BC8BD4","#A075B8","#78558B"],
-["#F8D4B4","#F4C4A0","#D4A48B","#B88875","#8B6255"],
-];
-return palettes[Math.floor(Math.random() * palettes.length)];
+  const modes = ["analogique", "complementaire", "triadique", "pastel", "sombre", "nature"];
+  const mode = modes[Math.floor(Math.random() * modes.length)];
+  const h = Math.floor(Math.random() * 360);
+
+  function hsl(hue, sat, light) {
+    hue = ((hue % 360) + 360) % 360;
+    return "hsl(" + hue + "," + sat + "%," + light + "%)";
+  }
+
+  switch(mode) {
+    case "analogique":
+      return [
+        hsl(h, 70, 45),
+        hsl(h + 20, 65, 55),
+        hsl(h + 40, 60, 65),
+        hsl(h + 60, 55, 72),
+        hsl(h + 80, 50, 80)
+      ];
+    case "complementaire":
+      return [
+        hsl(h, 75, 35),
+        hsl(h, 65, 50),
+        hsl(h, 45, 70),
+        hsl(h + 180, 65, 50),
+        hsl(h + 180, 75, 35)
+      ];
+    case "triadique":
+      return [
+        hsl(h, 70, 45),
+        hsl(h, 50, 70),
+        hsl(h + 120, 70, 45),
+        hsl(h + 240, 70, 45),
+        hsl(h + 240, 50, 70)
+      ];
+    case "pastel":
+      return [
+        hsl(h, 40, 80),
+        hsl(h + 30, 35, 83),
+        hsl(h + 60, 38, 86),
+        hsl(h + 90, 32, 88),
+        hsl(h + 120, 36, 85)
+      ];
+    case "sombre":
+      return [
+        hsl(h, 60, 15),
+        hsl(h + 20, 55, 22),
+        hsl(h + 40, 50, 30),
+        hsl(h + 60, 45, 38),
+        hsl(h + 80, 40, 45)
+      ];
+    case "nature":
+      const bases = [
+        [120, 45, 35], [30, 60, 40], [200, 40, 35],
+        [45, 55, 45], [160, 35, 40]
+      ];
+      const base = bases[Math.floor(Math.random() * bases.length)];
+      return [
+        hsl(base[0], base[1], base[2]),
+        hsl(base[0] + 15, base[1] - 10, base[2] + 15),
+        hsl(base[0] - 10, base[1] + 5, base[2] + 25),
+        hsl(base[0] + 25, base[1] - 15, base[2] + 35),
+        hsl(base[0] - 20, base[1] - 20, base[2] + 45)
+      ];
+    default:
+      return [
+        hsl(h, 70, 45),
+        hsl(h + 30, 65, 55),
+        hsl(h + 60, 60, 65),
+        hsl(h + 90, 55, 72),
+        hsl(h + 120, 50, 80)
+      ];
+  }
 }
 
 function renderPalettes() {
