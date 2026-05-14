@@ -1,4 +1,4 @@
 const KEYS = {
-  gemini: "AIzaSyB8GJBiDzfaamDLG6avqaEGOVQJRl_fao4",
+  gemini: "AIzaSyBGLixLhpWf0VFE79lUa_zes0Yht9oBHio",
   meteo: "TA_CLE_METEO_ICI"
 };

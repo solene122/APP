@@ -1104,45 +1104,153 @@ function renderCourse() {
 // CRÉATIF
 // ============================================
 function renderCreatif() {
-currentPage = "creatif";
-updateAIContext();
-const app = document.getElementById("app");
-app.innerHTML =
-'<div class="header">' +
-'<div class="greeting">Espace</div>' +
-'<div class="name">Créatif 🎨</div>' +
-'</div>' +
-'<div class="card">' +
-'<div class="word-title"><i data-lucide="layers"></i> Mes pratiques</div>' +
-'<div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:10px">' +
-creatifBtn("🖌️", "Peinture") +
-creatifBtn("💧", "Aquarelle") +
-creatifBtn("🏺", "Argile") +
-creatifBtn("💍", "Bijoux") +
-'<button style="background:rgba(255,255,255,0.1);border:1px dashed rgba(255,255,255,0.3);color:white;padding:10px 16px;border-radius:14px;font-size:13px;cursor:pointer;">+ Ajouter</button>' +
-'</div>' +
-'</div>' +
-'<div class="card" style="cursor:pointer" onclick="renderPalettes()">' +
-'<div class="word-title"><i data-lucide="droplets"></i> Palettes de couleurs</div>' +
-'<div style="display:flex;gap:6px;margin-top:10px">' +
-palettePreview() +
-'</div>' +
-'<div style="font-size:12px;opacity:0.5;margin-top:8px">Appuie pour explorer →</div>' +
-'</div>' +
-'<div class="card">' +
-'<div class="word-title"><i data-lucide="lightbulb"></i> Idées créatives</div>' +
-'<button onclick="ajouterIdeeCreative()" style="width:100%;background:rgba(255,255,255,0.1);border:1px dashed rgba(255,255,255,0.3);color:white;padding:12px;border-radius:14px;font-size:14px;cursor:pointer;margin-top:8px;">+ Nouvelle idée</button>' +
-'</div>' +
-'<div class="card" style="cursor:pointer" onclick="renderCroquis()">' +
-'<div class="word-title"><i data-lucide="pencil"></i> Croquis rapide</div>' +
-'<div style="font-size:14px;opacity:0.7;margin-top:6px">Ouvrir le carnet de croquis →</div>' +
-'</div>' +
-buildNav("creatif");
-lucide.createIcons();
+  currentPage = "creatif";
+  updateAIContext();
+  const app = document.getElementById("app");
+  const idees = JSON.parse(localStorage.getItem("idees_creatives") || "[]");
+
+  app.innerHTML =
+    '<div class="header">' +
+      '<div class="greeting">Espace</div>' +
+      '<div class="name">Créatif 🎨</div>' +
+    '</div>' +
+
+    '<div class="card">' +
+      '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">' +
+        '<div class="word-title" style="margin:0"><i data-lucide="layers"></i> Mes pratiques</div>' +
+      '</div>' +
+      '<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">' +
+        pratiquCard("🖌️", "Peinture", "peinture") +
+        pratiquCard("💧", "Aquarelle", "aquarelle") +
+        pratiquCard("🏺", "Argile", "argile") +
+        pratiquCard("💍", "Bijoux", "bijoux") +
+        getPratiquesPerso().map(function(p) { return pratiquCard(p.emoji, p.nom, p.id); }).join("") +
+        '<div onclick="ajouterPratique()" style="background:rgba(255,255,255,0.08);border:1px dashed rgba(255,255,255,0.3);border-radius:16px;padding:16px;text-align:center;cursor:pointer;">' +
+          '<div style="font-size:24px;margin-bottom:4px">+</div>' +
+          '<div style="font-size:12px;opacity:0.6">Ajouter</div>' +
+        '</div>' +
+      '</div>' +
+    '</div>' +
+
+    '<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;padding:0 16px">' +
+      actionCard("pencil", "Croquis rapide", "renderCroquis()") +
+      actionCard("droplets", "Palettes", "renderPalettes()") +
+      actionCard("image", "Moodboard", "renderMoodboard()") +
+      actionCard("sparkles", "Idée IA", "genererIdeeCreativeIA()") +
+    '</div>' +
+
+    '<div class="card" style="cursor:pointer" onclick="window.open(\'https://pinterest.com/solenelebaudy177/\',\'_blank\')">' +
+      '<div style="display:flex;align-items:center;gap:12px">' +
+        '<div style="background:#e60023;width:40px;height:40px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:20px;flex-shrink:0">📌</div>' +
+        '<div>' +
+          '<div style="font-size:15px;font-weight:600">Mes tableaux Pinterest</div>' +
+          '<div style="font-size:12px;opacity:0.6">Ouvrir mes inspirations →</div>' +
+        '</div>' +
+      '</div>' +
+    '</div>' +
+
+    '<div class="card">' +
+      '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">' +
+        '<div class="word-title" style="margin:0"><i data-lucide="lightbulb"></i> Idées récentes</div>' +
+        '<button onclick="ajouterIdeeCreative()" style="background:rgba(255,255,255,0.15);border:none;color:white;padding:6px 12px;border-radius:12px;font-size:12px;cursor:pointer;">+ Idée</button>' +
+      '</div>' +
+      (idees.length === 0 ?
+        '<div style="opacity:0.6;font-size:14px">Aucune idée pour l\'instant 🎨</div>' :
+        idees.slice(0, 3).map(function(id, i) {
+          return '<div style="padding:10px 0;border-bottom:1px solid rgba(255,255,255,0.1);cursor:pointer;user-select:none" ' +
+            'oncontextmenu="event.preventDefault();afficherMenuIdee(' + i + ')" ' +
+            'ontouchstart="startLongPress(\'idee\',' + i + ')" ' +
+            'ontouchend="cancelLongPress()" ' +
+            'ontouchmove="cancelLongPress()">' +
+            '<div style="font-size:14px">' + id.texte + '</div>' +
+            '<div style="font-size:11px;opacity:0.5;margin-top:2px">' + id.date + (id.pratique ? ' · ' + id.pratique : '') + '</div>' +
+          '</div>';
+        }).join("")
+      ) +
+    '</div>' +
+
+    buildNav("creatif");
+  lucide.createIcons();
 }
 
-function creatifBtn(emoji, nom) {
-return '<button style="background:rgba(255,255,255,0.15);border:1px solid rgba(255,255,255,0.2);color:white;padding:10px 16px;border-radius:14px;font-size:13px;cursor:pointer;">' + emoji + ' ' + nom + '</button>';
+function pratiquCard(emoji, nom, id) {
+  return '<div onclick="renderPratique(\'' + id + '\',\'' + nom + '\',\'' + emoji + '\')" style="background:rgba(255,255,255,0.1);border:1px solid rgba(255,255,255,0.15);border-radius:16px;padding:16px;text-align:center;cursor:pointer;">' +
+    '<div style="font-size:28px;margin-bottom:6px">' + emoji + '</div>' +
+    '<div style="font-size:13px;font-weight:600">' + nom + '</div>' +
+  '</div>';
+}
+
+function actionCard(icon, label, fn) {
+  return '<div onclick="' + fn + '" style="background:rgba(255,255,255,0.1);border:1px solid rgba(255,255,255,0.15);border-radius:16px;padding:16px;text-align:center;cursor:pointer;">' +
+    '<i data-lucide="' + icon + '" style="width:28px;height:28px;margin-bottom:6px"></i>' +
+    '<div style="font-size:13px;font-weight:600">' + label + '</div>' +
+  '</div>';
+}
+
+function getPratiquesPerso() {
+  return JSON.parse(localStorage.getItem("pratiques_perso") || "[]");
+}
+
+function ajouterPratique() {
+  afficherInput("Nouvelle pratique", "Ex: Broderie, Sculpture...", "", function(nom) {
+    afficherInput("Emoji pour " + nom, "Ex: 🧵", "🎨", function(emoji) {
+      const pratiques = getPratiquesPerso();
+      const id = "pratique_" + Date.now();
+      pratiques.push({ nom: nom, emoji: emoji, id: id });
+      localStorage.setItem("pratiques_perso", JSON.stringify(pratiques));
+      showToast(emoji + " " + nom + " ajouté !");
+      renderCreatif();
+    });
+  });
+}
+
+function ajouterIdeeCreative() {
+  afficherInput("Nouvelle idée créative", "Décris ton idée...", "", function(idee) {
+    const idees = JSON.parse(localStorage.getItem("idees_creatives") || "[]");
+    idees.unshift({ texte: idee, date: new Date().toLocaleDateString("fr-FR"), pratique: "" });
+    localStorage.setItem("idees_creatives", JSON.stringify(idees));
+    showToast("💡 Idée sauvegardée !");
+    renderCreatif();
+  });
+}
+
+function afficherMenuIdee(index) {
+  const idees = JSON.parse(localStorage.getItem("idees_creatives") || "[]");
+  afficherMenuContextuel(idees[index].texte, [
+    { label: "🗑️ Supprimer", action: function() {
+      idees.splice(index, 1);
+      localStorage.setItem("idees_creatives", JSON.stringify(idees));
+      showToast("🗑️ Idée supprimée");
+      renderCreatif();
+    }, danger: true }
+  ]);
+}
+
+async function genererIdeeCreativeIA() {
+  showToast("✨ L'IA cherche l'inspiration...");
+  try {
+    const res = await fetch("https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=" + KEYS.gemini, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        contents: [{ parts: [{ text: "Génère une idée créative originale et inspirante pour Solène qui pratique la peinture, l'aquarelle, l'argile et la bijouterie. Réponds avec UNE seule idée courte et concrète en français, sans introduction ni explication." }] }]
+      })
+    });
+    const data = await res.json();
+    const idee = data.candidates[0].content.parts[0].text.trim();
+    afficherMenuContextuel("💡 " + idee, [
+      { label: "💾 Sauvegarder cette idée", action: function() {
+        const idees = JSON.parse(localStorage.getItem("idees_creatives") || "[]");
+        idees.unshift({ texte: idee, date: new Date().toLocaleDateString("fr-FR"), pratique: "IA" });
+        localStorage.setItem("idees_creatives", JSON.stringify(idees));
+        showToast("💡 Idée sauvegardée !");
+        renderCreatif();
+      }},
+      { label: "🔄 Nouvelle idée", action: function() { genererIdeeCreativeIA(); } }
+    ]);
+  } catch(e) {
+    showToast("❌ Erreur, réessaie !");
+  }
 }
 
 function palettePreview() {
