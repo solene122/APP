@@ -462,7 +462,19 @@ function startLongPress(type, index) {
   cancelLongPress();
   longPressTimer = setTimeout(function() {
     if (type === "programme") afficherMenuProgramme(index);
-    if (type === "seance") afficherMenuSeance(index);
+    else if (type === "seance") afficherMenuSeance(index);
+    else if (type === "idee") afficherMenuIdee(index);
+    else if (type.startsWith("projetcreatif_")) {
+      var pratId = type.replace("projetcreatif_", "");
+      var pratiques = [
+        {id:"peinture", nom:"Peinture", emoji:"🖌️"},
+        {id:"aquarelle", nom:"Aquarelle", emoji:"💧"},
+        {id:"argile", nom:"Argile", emoji:"🏺"},
+        {id:"bijoux", nom:"Bijoux", emoji:"💍"}
+      ].concat(getPratiquesPerso());
+      var prat = pratiques.find(function(p) { return p.id === pratId; });
+      if (prat) afficherMenuProjetCreatif(pratId, index, prat.nom, prat.emoji);
+    }
   }, 600);
 }
 
@@ -1247,6 +1259,121 @@ async function genererIdeeCreativeIA() {
         renderCreatif();
       }},
       { label: "🔄 Nouvelle idée", action: function() { genererIdeeCreativeIA(); } }
+    ]);
+  } catch(e) {
+    showToast("❌ Erreur, réessaie !");
+  }
+}
+
+function renderPratique(id, nom, emoji) {
+  currentPage = "creatif";
+  const app = document.getElementById("app");
+  const key = "projets_creatifs_" + id;
+  const projets = JSON.parse(localStorage.getItem(key) || "[]");
+
+  app.innerHTML =
+    '<div class="header">' +
+      '<button onclick="renderCreatif()" style="background:rgba(255,255,255,0.15);border:none;color:white;padding:8px 16px;border-radius:20px;font-size:14px;cursor:pointer;margin-bottom:12px;">← Retour</button>' +
+      '<div class="name" style="font-size:28px">' + emoji + ' ' + nom + '</div>' +
+    '</div>' +
+
+    '<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;padding:0 16px">' +
+      '<button onclick="ajouterProjetCreatif(\'' + id + '\',\'' + nom + '\',\'' + emoji + '\')" style="background:linear-gradient(135deg,#7c6af7,#f953c6);border:none;color:white;padding:14px;border-radius:16px;font-size:14px;font-weight:600;cursor:pointer;">+ Projet</button>' +
+      '<button onclick="genererIdeeIA(\'' + nom + '\')" style="background:rgba(255,255,255,0.15);border:none;color:white;padding:14px;border-radius:16px;font-size:14px;cursor:pointer;">✨ Idée IA</button>' +
+    '</div>' +
+
+    '<div class="card">' +
+      '<div class="word-title"><i data-lucide="folder"></i> Mes projets</div>' +
+      (projets.length === 0 ?
+        '<div style="opacity:0.6;font-size:14px;margin-top:8px">Aucun projet — commence quelque chose ! 🎨</div>' :
+        projets.map(function(p, i) {
+          return '<div style="padding:12px 0;border-bottom:1px solid rgba(255,255,255,0.1);cursor:pointer;user-select:none" ' +
+            'oncontextmenu="event.preventDefault();afficherMenuProjetCreatif(\'' + id + '\',' + i + ',\'' + nom + '\',\'' + emoji + '\')" ' +
+            'ontouchstart="startLongPress(\'projetcreatif_' + id + '\',' + i + ')" ' +
+            'ontouchend="cancelLongPress()" ' +
+            'ontouchmove="cancelLongPress()">' +
+            '<div style="display:flex;justify-content:space-between;align-items:center">' +
+              '<div style="font-size:14px;font-weight:600">' + p.nom + '</div>' +
+              '<div style="font-size:11px;padding:3px 10px;border-radius:10px;background:' + statutCouleur(p.statut) + '">' + (p.statut || "idée") + '</div>' +
+            '</div>' +
+            (p.description ? '<div style="font-size:12px;opacity:0.6;margin-top:3px">' + p.description + '</div>' : '') +
+          '</div>';
+        }).join("")
+      ) +
+    '</div>' +
+
+    buildNav("creatif");
+  lucide.createIcons();
+}
+
+function statutCouleur(statut) {
+  if (statut === "en cours") return "rgba(255,200,0,0.3)";
+  if (statut === "terminé") return "rgba(100,200,100,0.3)";
+  return "rgba(255,255,255,0.15)";
+}
+
+function ajouterProjetCreatif(pratId, nom, emoji) {
+  afficherInput("Nom du projet", "Ex: Portrait au fusain...", "", function(nomProjet) {
+    afficherInput("Description (optionnel)", "Une courte description...", "", function(desc) {
+      const key = "projets_creatifs_" + pratId;
+      const projets = JSON.parse(localStorage.getItem(key) || "[]");
+      projets.unshift({ nom: nomProjet, description: desc, statut: "idée", date: new Date().toLocaleDateString("fr-FR") });
+      localStorage.setItem(key, JSON.stringify(projets));
+      showToast("🎨 Projet ajouté !");
+      renderPratique(pratId, nom, emoji);
+    });
+  });
+}
+
+function afficherMenuProjetCreatif(pratId, index, nom, emoji) {
+  const key = "projets_creatifs_" + pratId;
+  const projets = JSON.parse(localStorage.getItem(key) || "[]");
+  const projet = projets[index];
+  afficherMenuContextuel(projet.nom, [
+    { label: "💡 Marquer comme idée", action: function() { changerStatutProjet(pratId, index, "idée", nom, emoji); } },
+    { label: "⚡ En cours", action: function() { changerStatutProjet(pratId, index, "en cours", nom, emoji); } },
+    { label: "✅ Terminé", action: function() { changerStatutProjet(pratId, index, "terminé", nom, emoji); } },
+    { label: "🗑️ Supprimer", action: function() { supprimerProjetCreatif(pratId, index, nom, emoji); }, danger: true }
+  ]);
+}
+
+function changerStatutProjet(pratId, index, statut, nom, emoji) {
+  const key = "projets_creatifs_" + pratId;
+  const projets = JSON.parse(localStorage.getItem(key) || "[]");
+  projets[index].statut = statut;
+  localStorage.setItem(key, JSON.stringify(projets));
+  renderPratique(pratId, nom, emoji);
+}
+
+function supprimerProjetCreatif(pratId, index, nom, emoji) {
+  const key = "projets_creatifs_" + pratId;
+  const projets = JSON.parse(localStorage.getItem(key) || "[]");
+  projets.splice(index, 1);
+  localStorage.setItem(key, JSON.stringify(projets));
+  showToast("🗑️ Projet supprimé");
+  renderPratique(pratId, nom, emoji);
+}
+
+async function genererIdeeIA(pratique) {
+  showToast("✨ L'IA s'inspire...");
+  try {
+    const res = await fetch("https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=" + KEYS.gemini, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        contents: [{ parts: [{ text: "Génère une idée créative originale pour un projet de " + pratique + ". Réponds avec UNE seule idée courte et concrète en français, sans introduction." }] }]
+      })
+    });
+    const data = await res.json();
+    const idee = data.candidates[0].content.parts[0].text.trim();
+    afficherMenuContextuel("💡 Idée pour " + pratique, [
+      { label: "💾 Sauvegarder", action: function() {
+        const idees = JSON.parse(localStorage.getItem("idees_creatives") || "[]");
+        idees.unshift({ texte: idee, date: new Date().toLocaleDateString("fr-FR"), pratique: pratique });
+        localStorage.setItem("idees_creatives", JSON.stringify(idees));
+        showToast("💡 Idée sauvegardée !");
+      }},
+      { label: "🔄 Autre idée", action: function() { genererIdeeIA(pratique); } }
     ]);
   } catch(e) {
     showToast("❌ Erreur, réessaie !");
