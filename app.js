@@ -475,6 +475,7 @@ function startLongPress(type, index) {
       var prat = pratiques.find(function(p) { return p.id === pratId; });
       if (prat) afficherMenuProjetCreatif(pratId, index, prat.nom, prat.emoji);
     }
+    else if (type === "moodboard") supprimerMoodboardItem(index);
   }, 600);
 }
 
@@ -1510,6 +1511,113 @@ idees.unshift({ texte: idee, date: new Date().toLocaleDateString("fr-FR"), prati
 localStorage.setItem("idees_creatives", JSON.stringify(idees));
 alert("Idée sauvegardée ! 🎨");
 }
+}
+
+function renderMoodboard() {
+  currentPage = "creatif";
+  const app = document.getElementById("app");
+  const items = JSON.parse(localStorage.getItem("moodboard") || "[]");
+
+  app.innerHTML =
+    '<div class="header">' +
+      '<button onclick="renderCreatif()" style="background:rgba(255,255,255,0.15);border:none;color:white;padding:8px 16px;border-radius:20px;font-size:14px;cursor:pointer;margin-bottom:12px;">← Retour</button>' +
+      '<div class="name" style="font-size:28px">Moodboard 🖼️</div>' +
+      '<div class="date">' + items.length + ' éléments</div>' +
+    '</div>' +
+
+    '<div style="display:flex;gap:8px;padding:0 16px 8px;overflow-x:auto">' +
+      '<button onclick="ajouterLienMoodboard()" style="flex:1;background:rgba(255,255,255,0.15);border:none;color:white;padding:12px;border-radius:14px;font-size:13px;cursor:pointer;white-space:nowrap;">🔗 Lien</button>' +
+      '<button onclick="ajouterNoteMoodboard()" style="flex:1;background:rgba(255,255,255,0.15);border:none;color:white;padding:12px;border-radius:14px;font-size:13px;cursor:pointer;white-space:nowrap;">📝 Note</button>' +
+      '<button onclick="ajouterImageMoodboard()" style="flex:1;background:rgba(255,255,255,0.15);border:none;color:white;padding:12px;border-radius:14px;font-size:13px;cursor:pointer;white-space:nowrap;">📷 Photo</button>' +
+      '<button onclick="ajouterCroquisDepuisMoodboard()" style="flex:1;background:rgba(255,255,255,0.15);border:none;color:white;padding:12px;border-radius:14px;font-size:13px;cursor:pointer;white-space:nowrap;">✏️ Croquis</button>' +
+    '</div>' +
+
+    (items.length === 0 ?
+      '<div class="card" style="text-align:center;padding:40px;opacity:0.6">Ajoute des liens, photos et notes pour créer ton moodboard 🎨</div>' :
+      '<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;padding:0 16px">' +
+        items.map(function(item, i) {
+          return '<div style="background:rgba(255,255,255,0.1);border:1px solid rgba(255,255,255,0.15);border-radius:16px;overflow:hidden;cursor:pointer;user-select:none" ' +
+            'oncontextmenu="event.preventDefault();supprimerMoodboardItem(' + i + ')" ' +
+            'ontouchstart="startLongPress(\'moodboard\',' + i + ')" ' +
+            'ontouchend="cancelLongPress()" ' +
+            'ontouchmove="cancelLongPress()" ' +
+            (item.url ? 'onclick="window.open(\'' + item.url + '\',\'_blank\')"' : '') + '>' +
+            (item.image ?
+              '<img src="' + item.image + '" style="width:100%;height:100px;object-fit:cover;display:block;background:white" />' : '') +
+            '<div style="padding:10px">' +
+              '<div style="font-size:16px;margin-bottom:4px">' + (item.type === "lien" ? "🔗" : item.type === "image" ? "🖼️" : item.type === "croquis" ? "✏️" : "📝") + '</div>' +
+              '<div style="font-size:12px;line-height:1.4;opacity:0.9">' + item.texte + '</div>' +
+            '</div>' +
+          '</div>';
+        }).join("") +
+      '</div>'
+    ) +
+    '<div style="height:20px"></div>' +
+    buildNav("creatif");
+  lucide.createIcons();
+}
+
+function ajouterLienMoodboard() {
+  afficherInput("Lien Pinterest ou autre", "https://pinterest.com/...", "", function(url) {
+    afficherInput("Description", "Ex: Palette automnale...", "", function(desc) {
+      const items = JSON.parse(localStorage.getItem("moodboard") || "[]");
+      items.unshift({ type: "lien", texte: desc, url: url });
+      localStorage.setItem("moodboard", JSON.stringify(items));
+      showToast("🔗 Lien ajouté !");
+      renderMoodboard();
+    });
+  });
+}
+
+function ajouterNoteMoodboard() {
+  afficherInput("Note d'inspiration", "Une couleur, une texture, une idée...", "", function(note) {
+    const items = JSON.parse(localStorage.getItem("moodboard") || "[]");
+    items.unshift({ type: "note", texte: note });
+    localStorage.setItem("moodboard", JSON.stringify(items));
+    showToast("📝 Note ajoutée !");
+    renderMoodboard();
+  });
+}
+
+function ajouterImageMoodboard() {
+  const input = document.createElement("input");
+  input.type = "file";
+  input.accept = "image/*";
+  input.onchange = function(e) {
+    const file = e.target.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = function(ev) {
+      afficherInput("Description de l'image", "Ex: Inspiration couleurs...", "", function(desc) {
+        const items = JSON.parse(localStorage.getItem("moodboard") || "[]");
+        items.unshift({ type: "image", texte: desc, image: ev.target.result });
+        localStorage.setItem("moodboard", JSON.stringify(items));
+        showToast("🖼️ Image ajoutée !");
+        renderMoodboard();
+      });
+    };
+    reader.readAsDataURL(file);
+  };
+  input.click();
+}
+
+function ajouterCroquisDepuisMoodboard() {
+  afficherMenuContextuel("Ajouter un croquis", [
+    { label: "✏️ Nouveau croquis", action: function() { renderCroquis(); } },
+    { label: "📚 Depuis la bibliothèque", action: function() { renderBiblioCroquis("moodboard"); } }
+  ]);
+}
+
+function supprimerMoodboardItem(index) {
+  afficherMenuContextuel("Supprimer cet élément ?", [
+    { label: "🗑️ Supprimer", action: function() {
+      const items = JSON.parse(localStorage.getItem("moodboard") || "[]");
+      items.splice(index, 1);
+      localStorage.setItem("moodboard", JSON.stringify(items));
+      showToast("🗑️ Supprimé");
+      renderMoodboard();
+    }, danger: true }
+  ]);
 }
 
 function renderCroquis() {
