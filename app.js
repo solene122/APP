@@ -464,6 +464,7 @@ function startLongPress(type, index) {
     if (type === "programme") afficherMenuProgramme(index);
     else if (type === "seance") afficherMenuSeance(index);
     else if (type === "idee") afficherMenuIdee(index);
+    else if (type === "wishlist") menuWishlistItem(index);
     else if (type.startsWith("projetcreatif_")) {
       var pratId = type.replace("projetcreatif_", "");
       var pratiques = [
@@ -1980,22 +1981,23 @@ function effacerCroquis() {
 // MENU PRINCIPAL
 // ============================================
 function renderMenu() {
-currentPage = "menu";
-const app = document.getElementById("app");
-app.innerHTML =
-'<div class="header">' +
-'<div class="name">Menu 🗂️</div>' +
-'</div>' +
-'<div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;padding:0 16px">' +
-menuCard("🧠", "Mental", "renderMental()") +
-menuCard("🌍", "Voyages", "renderVoyages()") +
-menuCard("📚", "Lectures", "renderLectures()") +
-menuCard("✅", "Projets", "renderProjets()") +
-menuCard("🏆", "Défis", "renderDefis()") +
-menuCard("📓", "Journal", "renderJournal()") +
-'</div>' +
-buildNav("plus");
-lucide.createIcons();
+  currentPage = "menu";
+  const app = document.getElementById("app");
+  app.innerHTML =
+    '<div class="header">' +
+      '<div class="name">Menu 🗂️</div>' +
+    '</div>' +
+    '<div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;padding:0 16px">' +
+      menuCard("🧠", "Mental", "renderMental()") +
+      menuCard("🌍", "Voyages", "renderVoyages()") +
+      menuCard("📚", "Lectures", "renderLectures()") +
+      menuCard("✅", "Projets", "renderProjets()") +
+      menuCard("🏆", "Défis", "renderDefis()") +
+      menuCard("📓", "Journal", "renderJournal()") +
+      menuCard("🛍️", "Wishlist", "renderWishlist()") +
+    '</div>' +
+    buildNav("plus");
+  lucide.createIcons();
 }
 
 function menuCard(emoji, titre, fn) {
@@ -2008,6 +2010,258 @@ return '<div class="card" style="text-align:center;cursor:pointer;padding:24px 1
 // ============================================
 // SECTIONS SECONDAIRES (stubs)
 // ============================================
+// ============================================
+// WISHLIST
+// ============================================
+function renderWishlist(filtre) {
+  filtre = filtre || "tous";
+  currentPage = "wishlist";
+  updateAIContext();
+  const app = document.getElementById("app");
+  const items = getWishlistItems();
+  const categories = ["tous", "vêtement", "livre", "créatif", "sport", "déco", "tech", "autre"];
+  const filtres_statut = ["tous", "souhaité", "acheté", "abandonné"];
+
+  const liste = items.filter(function(it) {
+    if (filtre === "tous") return it.statut !== "acheté" && it.statut !== "abandonné";
+    if (filtre === "acheté") return it.statut === "acheté";
+    if (filtre === "abandonné") return it.statut === "abandonné";
+    return it.categorie === filtre;
+  });
+
+  const budgetTotal = items
+    .filter(function(it) { return it.statut === "souhaité" && it.prix; })
+    .reduce(function(t, it) { return t + parseFloat(it.prix); }, 0);
+
+  app.innerHTML =
+    '<div class="header">' +
+      '<button onclick="renderMenu()" style="background:rgba(255,255,255,0.15);border:none;color:white;padding:8px 16px;border-radius:20px;font-size:14px;cursor:pointer;margin-bottom:12px;">← Retour</button>' +
+      '<div style="display:flex;justify-content:space-between;align-items:center">' +
+        '<div class="name" style="font-size:28px">Wishlist 🛍️</div>' +
+        '<button onclick="ajouterWishlistItem()" style="background:linear-gradient(135deg,#7c6af7,#f953c6);border:none;color:white;padding:10px 16px;border-radius:14px;font-size:13px;font-weight:600;cursor:pointer;">+ Ajouter</button>' +
+      '</div>' +
+    '</div>' +
+
+    '<div class="card">' +
+      '<div class="summary-grid">' +
+        '<div class="summary-item"><div class="value">' + items.filter(function(i){ return i.statut === "souhaité"; }).length + '</div><div class="label">Souhaités</div></div>' +
+        '<div class="summary-item"><div class="value">' + items.filter(function(i){ return i.statut === "acheté"; }).length + '</div><div class="label">Achetés</div></div>' +
+        '<div class="summary-item"><div class="value">' + budgetTotal.toFixed(0) + '€</div><div class="label">Budget estimé</div></div>' +
+        '<div class="summary-item"><div class="value">' + items.length + '</div><div class="label">Total</div></div>' +
+      '</div>' +
+    '</div>' +
+
+    '<div style="display:flex;gap:8px;padding:0 16px 8px;overflow-x:auto;-webkit-overflow-scrolling:touch">' +
+      '<button onclick="renderWishlist(\'tous\')" class="filtre-btn ' + (filtre === "tous" ? "actif" : "") + '" style="white-space:nowrap">Actifs</button>' +
+      '<button onclick="renderWishlist(\'acheté\')" class="filtre-btn ' + (filtre === "acheté" ? "actif" : "") + '" style="white-space:nowrap">✅ Achetés</button>' +
+      '<button onclick="renderWishlist(\'abandonné\')" class="filtre-btn ' + (filtre === "abandonné" ? "actif" : "") + '" style="white-space:nowrap">🗑️ Abandonnés</button>' +
+      categories.slice(1).map(function(c) {
+        return '<button onclick="renderWishlist(\'' + c + '\')" class="filtre-btn ' + (filtre === c ? "actif" : "") + '" style="white-space:nowrap">' + c + '</button>';
+      }).join("") +
+    '</div>' +
+
+    (liste.length === 0 ?
+      '<div class="card" style="text-align:center;padding:40px;opacity:0.6">Aucun élément ici 🛍️</div>' :
+      liste.map(function(item, i) {
+        const realIndex = items.indexOf(item);
+        const scoreEnvie = item.envie || 0;
+        const scoreUtilite = item.utilite || 0;
+        const score = scoreEnvie + scoreUtilite;
+        return '<div class="card" style="cursor:pointer;user-select:none" ' +
+          'oncontextmenu="event.preventDefault();menuWishlistItem(' + realIndex + ')" ' +
+          'ontouchstart="startLongPress(\'wishlist\',' + realIndex + ')" ' +
+          'ontouchend="cancelLongPress()" ' +
+          'ontouchmove="cancelLongPress()">' +
+          '<div style="display:flex;justify-content:space-between;align-items:flex-start;gap:10px">' +
+            '<div style="flex:1">' +
+              '<div style="font-size:15px;font-weight:700;margin-bottom:4px">' + item.nom + '</div>' +
+              '<div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:6px">' +
+                '<span style="font-size:11px;background:rgba(255,255,255,0.15);padding:3px 10px;border-radius:10px">' + (item.categorie || "autre") + '</span>' +
+                (item.prix ? '<span style="font-size:11px;background:rgba(100,200,100,0.2);padding:3px 10px;border-radius:10px">' + item.prix + '€</span>' : '') +
+                '<span style="font-size:11px;background:' + statutWishlistCouleur(item.statut) + ';padding:3px 10px;border-radius:10px">' + (item.statut || "souhaité") + '</span>' +
+              '</div>' +
+              (item.note ? '<div style="font-size:12px;opacity:0.6;margin-bottom:6px">' + item.note + '</div>' : '') +
+              '<div style="display:flex;gap:12px">' +
+                '<div style="font-size:12px;opacity:0.7">❤️ Envie : ' + scoreEnvie + '/5</div>' +
+                '<div style="font-size:12px;opacity:0.7">⚡ Utilité : ' + scoreUtilite + '/5</div>' +
+              '</div>' +
+            '</div>' +
+            '<div style="text-align:center;background:rgba(124,106,247,0.2);border-radius:12px;padding:8px 12px;flex-shrink:0">' +
+              '<div style="font-size:20px;font-weight:700">' + score + '</div>' +
+              '<div style="font-size:10px;opacity:0.6">score</div>' +
+            '</div>' +
+          '</div>' +
+          (item.lien ? '<button onclick="event.stopPropagation();window.open(\'' + item.lien + '\',\'_blank\')" style="width:100%;background:rgba(255,255,255,0.08);border:none;color:white;padding:8px;border-radius:10px;font-size:12px;cursor:pointer;margin-top:8px;">🔗 Voir le lien</button>' : '') +
+        '</div>';
+      }).join("")
+    ) +
+
+    '<div style="height:20px"></div>' +
+    buildNav("plus");
+  lucide.createIcons();
+}
+
+function getWishlistItems() {
+  return JSON.parse(localStorage.getItem("wishlist") || "[]");
+}
+
+function sauvegarderWishlist(items) {
+  localStorage.setItem("wishlist", JSON.stringify(items));
+}
+
+function statutWishlistCouleur(statut) {
+  if (statut === "acheté") return "rgba(100,200,100,0.3)";
+  if (statut === "abandonné") return "rgba(255,100,100,0.2)";
+  return "rgba(255,255,255,0.15)";
+}
+
+function ajouterWishlistItem() {
+  afficherInput("Nom de l'article", "Ex: Aquarelles Winsor & Newton...", "", function(nom) {
+    afficherInput("Catégorie", "vêtement, livre, créatif, sport, déco, tech, autre", "autre", function(categorie) {
+      afficherInput("Prix estimé (optionnel)", "Ex: 45", "", function(prix) {
+        afficherInput("Lien URL (optionnel)", "https://...", "", function(lien) {
+          afficherInput("Note personnelle (optionnel)", "Pourquoi tu veux ça...", "", function(note) {
+            afficherScoresWishlist(function(envie, utilite) {
+              const items = getWishlistItems();
+              items.unshift({
+                nom: nom,
+                categorie: categorie,
+                prix: prix || null,
+                lien: lien || null,
+                note: note || null,
+                envie: envie,
+                utilite: utilite,
+                statut: "souhaité",
+                date: new Date().toLocaleDateString("fr-FR")
+              });
+              sauvegarderWishlist(items);
+              showToast("🛍️ " + nom + " ajouté !");
+              renderWishlist();
+            });
+          });
+        });
+      });
+    });
+  });
+}
+
+function afficherScoresWishlist(callback) {
+  const overlay = document.createElement("div");
+  overlay.style.cssText = "position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:500;backdrop-filter:blur(4px);display:flex;align-items:flex-end;justify-content:center;";
+
+  const panel = document.createElement("div");
+  panel.style.cssText = "width:100%;max-width:430px;background:rgba(20,16,50,0.97);border-radius:28px 28px 0 0;padding:24px;border:1px solid rgba(255,255,255,0.15);padding-bottom:calc(24px + env(safe-area-inset-bottom));";
+
+  panel.innerHTML =
+    '<div style="font-size:17px;font-weight:700;margin-bottom:20px">Évalue cet article</div>' +
+    '<div style="margin-bottom:16px">' +
+      '<div style="font-size:14px;margin-bottom:8px">❤️ Niveau d\'envie</div>' +
+      '<div style="display:flex;gap:6px">' +
+        [1,2,3,4,5].map(function(n) {
+          return '<button id="envie_' + n + '" onclick="selectScore(\'envie\',' + n + ')" style="flex:1;background:rgba(255,255,255,0.1);border:none;color:white;padding:10px;border-radius:10px;font-size:14px;cursor:pointer;">' + n + '</button>';
+        }).join("") +
+      '</div>' +
+    '</div>' +
+    '<div style="margin-bottom:20px">' +
+      '<div style="font-size:14px;margin-bottom:8px">⚡ Niveau d\'utilité</div>' +
+      '<div style="display:flex;gap:6px">' +
+        [1,2,3,4,5].map(function(n) {
+          return '<button id="utilite_' + n + '" onclick="selectScore(\'utilite\',' + n + ')" style="flex:1;background:rgba(255,255,255,0.1);border:none;color:white;padding:10px;border-radius:10px;font-size:14px;cursor:pointer;">' + n + '</button>';
+        }).join("") +
+      '</div>' +
+    '</div>' +
+    '<div style="display:flex;gap:10px">' +
+      '<button onclick="this.closest(\'div[style*=fixed]\').remove()" style="flex:1;background:rgba(255,255,255,0.08);border:none;color:white;padding:14px;border-radius:14px;font-size:15px;cursor:pointer;font-family:var(--font)">Annuler</button>' +
+      '<button id="scores-confirm" onclick="confirmerScores()" style="flex:1;background:linear-gradient(135deg,#7c6af7,#f953c6);border:none;color:white;padding:14px;border-radius:14px;font-size:15px;font-weight:600;cursor:pointer;font-family:var(--font)">Confirmer</button>' +
+    '</div>';
+
+  overlay.appendChild(panel);
+  document.body.appendChild(overlay);
+  window._wishlistScoreCallback = callback;
+  window._wishlistScores = { envie: 3, utilite: 3 };
+  selectScore("envie", 3);
+  selectScore("utilite", 3);
+}
+
+function selectScore(type, valeur) {
+  if (!window._wishlistScores) window._wishlistScores = { envie: 3, utilite: 3 };
+  window._wishlistScores[type] = valeur;
+  for (var i = 1; i <= 5; i++) {
+    const btn = document.getElementById(type + "_" + i);
+    if (btn) btn.style.background = i <= valeur ? "rgba(124,106,247,0.6)" : "rgba(255,255,255,0.1)";
+  }
+}
+
+function confirmerScores() {
+  const scores = window._wishlistScores || { envie: 3, utilite: 3 };
+  const overlay = document.querySelector('div[style*="position:fixed"][style*="z-index:500"]');
+  if (overlay) overlay.remove();
+  if (window._wishlistScoreCallback) {
+    window._wishlistScoreCallback(scores.envie, scores.utilite);
+  }
+}
+
+function menuWishlistItem(index) {
+  const items = getWishlistItems();
+  const item = items[index];
+  afficherMenuContextuel("🛍️ " + item.nom, [
+    { label: "✅ Marquer comme acheté", action: function() {
+      items[index].statut = "acheté";
+      sauvegarderWishlist(items);
+      showToast("✅ Acheté !");
+      renderWishlist();
+    }},
+    { label: "💡 Remettre en souhaité", action: function() {
+      items[index].statut = "souhaité";
+      sauvegarderWishlist(items);
+      renderWishlist();
+    }},
+    { label: "🤖 Analyse IA", action: function() { analyserWishlistItemIA(index); }},
+    { label: "🗑️ Abandonner", action: function() {
+      items[index].statut = "abandonné";
+      sauvegarderWishlist(items);
+      showToast("🗑️ Abandonné");
+      renderWishlist();
+    }, danger: true},
+    { label: "❌ Supprimer", action: function() {
+      items.splice(index, 1);
+      sauvegarderWishlist(items);
+      showToast("🗑️ Supprimé");
+      renderWishlist();
+    }, danger: true}
+  ]);
+}
+
+async function analyserWishlistItemIA(index) {
+  const item = getWishlistItems()[index];
+  showToast("🤖 L'IA analyse...");
+  try {
+    const res = await fetch("https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=" + KEYS.gemini, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        contents: [{ parts: [{ text: "Tu es un conseiller shopping bienveillant. Analyse cet article de wishlist et dis si c'est un bon achat ou un coup de tête. Article: " + item.nom + ", catégorie: " + item.categorie + ", prix: " + (item.prix || "inconnu") + "€, envie: " + item.envie + "/5, utilité: " + item.utilite + "/5, note: " + (item.note || "aucune") + ". Réponds en 2-3 phrases max en français, de façon honnête et bienveillante." }] }]
+      })
+    });
+    const data = await res.json();
+    const analyse = data.candidates[0].content.parts[0].text.trim();
+    afficherMenuContextuel("🤖 Avis IA sur " + item.nom, [
+      { label: "✅ J'ai compris !", action: function() { renderWishlist(); } }
+    ]);
+    setTimeout(function() {
+      const panel = document.querySelector('#ctx_action_0')?.closest('div');
+      if (panel) {
+        const div = document.createElement('div');
+        div.style.cssText = 'font-size:14px;line-height:1.6;padding:12px 0;opacity:0.9;color:white';
+        div.textContent = analyse;
+        panel.insertBefore(div, panel.querySelector('button'));
+      }
+    }, 100);
+  } catch(e) {
+    showToast("❌ Erreur, réessaie !");
+  }
+}
+
 function renderMental() {
 currentPage = "mental";
 updateAIContext();
@@ -2133,6 +2387,7 @@ lectures: "Tu es l'assistant littéraire de Solène. Aide-la avec ses lectures, 
 projets: "Tu es l'assistant productivité de Solène. Aide-la à organiser ses projets, ses tâches, ses objectifs. Sois efficace et structurée.",
 defis: "Tu es le coach défi de Solène. Motive-la dans ses défis personnels et sportifs. Sois dynamique et encourageante.",
 journal: "Tu es l'assistant journal de Solène. Propose-lui des prompts d'écriture, aide-la à s'exprimer. Sois inspirante et bienveillante.",
+wishlist: "Tu es un conseiller shopping pour Solène. Aide-la à gérer sa wishlist, évaluer ses envies d'achat, prioriser ses achats. Sois honnête et bienveillante.",
 };
 
 const aiLabels = {
@@ -2145,6 +2400,7 @@ lectures: "📚 Assistant littéraire",
 projets: "✅ Productivité",
 defis: "🏆 Coach défi",
 journal: "📓 Journal",
+wishlist: "🛍️ Conseiller shopping",
 };
 
 var aiMessages = [];
