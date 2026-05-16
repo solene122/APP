@@ -1983,6 +1983,207 @@ function effacerCroquis() {
     sketchCtx.clearRect(0, 0, sketchCtx.canvas.width, sketchCtx.canvas.height);
   }
 }
+
+// ============================================
+// GOOGLE CALENDAR
+// ============================================
+var calendarInitialized = false;
+var calendarConnected = false;
+
+function initGoogleCalendar() {
+  return new Promise(function(resolve) {
+    gapi.load("client:auth2", function() {
+      gapi.client.init({
+        clientId: KEYS.googleCalendar,
+        scope: "https://www.googleapis.com/auth/calendar.readonly https://www.googleapis.com/auth/calendar.events",
+        discoveryDocs: ["https://www.googleapis.com/discovery/v1/apis/calendar/v1/rest"]
+      }).then(function() {
+        calendarInitialized = true;
+        calendarConnected = gapi.auth2.getAuthInstance().isSignedIn.get();
+        resolve(calendarConnected);
+      }).catch(function(e) {
+        console.log("Calendar init error:", e);
+        resolve(false);
+      });
+    });
+  });
+}
+
+async function connecterGoogleCalendar() {
+  if (!calendarInitialized) await initGoogleCalendar();
+  try {
+    await gapi.auth2.getAuthInstance().signIn();
+    calendarConnected = true;
+    showToast("📅 Google Agenda connecté !");
+    return true;
+  } catch(e) {
+    showToast("❌ Connexion annulée");
+    return false;
+  }
+}
+
+async function deconnecterGoogleCalendar() {
+  if (calendarInitialized) {
+    await gapi.auth2.getAuthInstance().signOut();
+    calendarConnected = false;
+    showToast("📅 Google Agenda déconnecté");
+  }
+}
+
+async function getEvenementsAujourdhui() {
+  if (!calendarConnected) return [];
+  try {
+    const debut = new Date();
+    debut.setHours(0, 0, 0, 0);
+    const fin = new Date();
+    fin.setHours(23, 59, 59, 999);
+
+    const res = await gapi.client.calendar.events.list({
+      calendarId: "primary",
+      timeMin: debut.toISOString(),
+      timeMax: fin.toISOString(),
+      singleEvents: true,
+      orderBy: "startTime",
+      maxResults: 10
+    });
+    return res.result.items || [];
+  } catch(e) { return []; }
+}
+
+async function getEvenementsSemaine() {
+  if (!calendarConnected) return [];
+  try {
+    const debut = new Date();
+    debut.setHours(0, 0, 0, 0);
+    const fin = new Date(debut);
+    fin.setDate(debut.getDate() + 7);
+
+    const res = await gapi.client.calendar.events.list({
+      calendarId: "primary",
+      timeMin: debut.toISOString(),
+      timeMax: fin.toISOString(),
+      singleEvents: true,
+      orderBy: "startTime",
+      maxResults: 20
+    });
+    return res.result.items || [];
+  } catch(e) { return []; }
+}
+
+async function ajouterEvenementCalendar(titre, date, heure, dureeMinutes) {
+  if (!calendarConnected) {
+    const connecte = await connecterGoogleCalendar();
+    if (!connecte) return;
+  }
+  try {
+    const debut = new Date(date + "T" + (heure || "09:00") + ":00");
+    const fin = new Date(debut.getTime() + (dureeMinutes || 60) * 60000);
+
+    await gapi.client.calendar.events.insert({
+      calendarId: "primary",
+      resource: {
+        summary: titre,
+        start: { dateTime: debut.toISOString() },
+        end: { dateTime: fin.toISOString() }
+      }
+    });
+    showToast("📅 Ajouté à Google Agenda !");
+  } catch(e) {
+    showToast("❌ Erreur agenda");
+  }
+}
+
+async function renderAgenda() {
+  currentPage = "agenda";
+  updateAIContext();
+  const app = document.getElementById("app");
+
+  if (!calendarInitialized) await initGoogleCalendar();
+
+  app.innerHTML =
+    '<div class="header">' +
+      '<button onclick="renderMenu()" style="background:rgba(255,255,255,0.15);border:none;color:white;padding:8px 16px;border-radius:20px;font-size:14px;cursor:pointer;margin-bottom:12px;">← Retour</button>' +
+      '<div style="display:flex;justify-content:space-between;align-items:center">' +
+        '<div class="name" style="font-size:28px">Agenda 📅</div>' +
+        (calendarConnected ?
+          '<button onclick="deconnecterGoogleCalendar().then(renderAgenda)" style="background:rgba(255,100,100,0.2);border:none;color:white;padding:8px 14px;border-radius:12px;font-size:12px;cursor:pointer;">Déconnecter</button>' :
+          '<button onclick="connecterGoogleCalendar().then(renderAgenda)" style="background:linear-gradient(135deg,#4285f4,#34a853);border:none;color:white;padding:8px 14px;border-radius:12px;font-size:13px;cursor:pointer;font-weight:600;">🔗 Connecter Google</button>'
+        ) +
+      '</div>' +
+    '</div>' +
+
+    (!calendarConnected ?
+      '<div class="card" style="text-align:center;padding:40px">' +
+        '<div style="font-size:48px;margin-bottom:16px">📅</div>' +
+        '<div style="font-size:15px;font-weight:600;margin-bottom:8px">Connecte ton Google Agenda</div>' +
+        '<div style="font-size:13px;opacity:0.6;margin-bottom:20px">Vois tes événements directement dans l\'app</div>' +
+        '<button onclick="connecterGoogleCalendar().then(renderAgenda)" style="background:linear-gradient(135deg,#4285f4,#34a853);border:none;color:white;padding:14px 28px;border-radius:16px;font-size:15px;font-weight:600;cursor:pointer;">🔗 Connecter Google Agenda</button>' +
+      '</div>' :
+      '<div id="calendar-content"><div style="color:white;padding:40px;text-align:center">Chargement...</div></div>'
+    ) +
+
+    '<div style="height:20px"></div>' +
+    buildNav("plus");
+
+  lucide.createIcons();
+
+  if (calendarConnected) {
+    const evenements = await getEvenementsSemaine();
+    const content = document.getElementById("calendar-content");
+    if (!content) return;
+
+    const aujourd = new Date().toDateString();
+    const parJour = {};
+    evenements.forEach(function(ev) {
+      const date = new Date(ev.start.dateTime || ev.start.date);
+      const key = date.toDateString();
+      if (!parJour[key]) parJour[key] = [];
+      parJour[key].push(ev);
+    });
+
+    content.innerHTML =
+      '<div style="padding:0 16px 8px;display:flex;gap:10px">' +
+        '<button onclick="ajouterEvenementRapide()" style="flex:1;background:linear-gradient(135deg,#7c6af7,#f953c6);border:none;color:white;padding:12px;border-radius:14px;font-size:13px;font-weight:600;cursor:pointer;">+ Événement</button>' +
+      '</div>' +
+      Object.keys(parJour).map(function(jour) {
+        const date = new Date(jour);
+        const estAujourd = jour === aujourd;
+        const dateStr = date.toLocaleDateString("fr-FR", { weekday: "long", day: "numeric", month: "long" });
+        return '<div class="card" style="' + (estAujourd ? "border-color:rgba(124,106,247,0.5)" : "") + '">' +
+          '<div style="font-size:13px;font-weight:700;margin-bottom:10px;' + (estAujourd ? "color:rgba(200,180,255,1)" : "opacity:0.7") + '">' +
+            (estAujourd ? "📍 Aujourd'hui — " : "") + dateStr +
+          '</div>' +
+          parJour[jour].map(function(ev) {
+            const heure = ev.start.dateTime ?
+              new Date(ev.start.dateTime).toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" }) : "Journée entière";
+            return '<div style="padding:8px 0;border-bottom:1px solid rgba(255,255,255,0.08)">' +
+              '<div style="display:flex;gap:10px;align-items:center">' +
+                '<div style="font-size:12px;opacity:0.6;width:50px;flex-shrink:0">' + heure + '</div>' +
+                '<div style="font-size:14px;font-weight:600">' + ev.summary + '</div>' +
+              '</div>' +
+              (ev.location ? '<div style="font-size:12px;opacity:0.5;margin-top:3px;padding-left:60px">📍 ' + ev.location + '</div>' : '') +
+            '</div>';
+          }).join("") +
+        '</div>';
+      }).join("") +
+      (Object.keys(parJour).length === 0 ?
+        '<div class="card" style="text-align:center;padding:30px;opacity:0.6">Aucun événement cette semaine 🎉</div>' : ""
+      );
+  }
+}
+
+function ajouterEvenementRapide() {
+  afficherInput("Titre de l'événement", "Ex: Séance muscu...", "", function(titre) {
+    afficherInput("Date", "Ex: 2026-06-20", new Date().toISOString().split("T")[0], function(date) {
+      afficherInput("Heure de début", "Ex: 14:00", "09:00", function(heure) {
+        afficherInputOptional("Durée en minutes (optionnel)", "Ex: 60", function(duree) {
+          ajouterEvenementCalendar(titre, date, heure, parseInt(duree) || 60);
+        });
+      });
+    });
+  });
+}
+
 // ============================================
 // MENU PRINCIPAL
 // ============================================
@@ -2001,6 +2202,7 @@ function renderMenu() {
       menuCard("🏆", "Défis", "renderDefis()") +
       menuCard("📓", "Journal", "renderJournal()") +
       menuCard("🛍️", "Wishlist", "renderWishlist()") +
+      menuCard("📅", "Agenda", "renderAgenda()") +
     '</div>' +
     buildNav("plus");
   lucide.createIcons();
@@ -2928,6 +3130,7 @@ projets: "Tu es l'assistant productivité de Solène. Aide-la à organiser ses p
 defis: "Tu es le coach défi de Solène. Motive-la dans ses défis personnels et sportifs. Sois dynamique et encourageante.",
 journal: "Tu es l'assistant journal de Solène. Propose-lui des prompts d'écriture, aide-la à s'exprimer. Sois inspirante et bienveillante.",
 wishlist: "Tu es un conseiller shopping pour Solène. Aide-la à gérer sa wishlist, évaluer ses envies d'achat, prioriser ses achats. Sois honnête et bienveillante.",
+agenda: "Tu es l'assistant agenda de Solène. Aide-la à organiser son temps, planifier ses événements, gérer ses priorités. Sois efficace et organisée.",
 };
 
 const aiLabels = {
@@ -2941,6 +3144,7 @@ projets: "✅ Productivité",
 defis: "🏆 Coach défi",
 journal: "📓 Journal",
 wishlist: "🛍️ Conseiller shopping",
+agenda: "📅 Assistant agenda",
 };
 
 var aiMessages = [];
