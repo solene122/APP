@@ -463,6 +463,12 @@ function startLongPress(type, index) {
   longPressTimer = setTimeout(function() {
     if (type === "programme") afficherMenuProgramme(index);
     else if (type === "seance") afficherMenuSeance(index);
+    else if (type === "projet") menuProjet(index);
+    else if (type === "tacherapide") menuTacheRapide(index);
+    else if (type.startsWith("tacheprojet_")) {
+  var projetIndex = parseInt(type.replace("tacheprojet_", ""));
+  menuTacheProjet(projetIndex, index);
+}
     else if (type === "idee") afficherMenuIdee(index);
     else if (type === "wishlist") menuWishlistItem(index);
     else if (type.startsWith("projetcreatif_")) {
@@ -2339,11 +2345,443 @@ currentPage = "lectures";
 updateAIContext();
 renderStub("Lectures 📚", "Tes livres et citations — bientôt !", "renderMenu()");
 }
+
 function renderProjets() {
-currentPage = "projets";
-updateAIContext();
-renderStub("Projets ✅", "Tes projets et tâches — bientôt !", "renderMenu()");
+  currentPage = "projets";
+  updateAIContext();
+  const app = document.getElementById("app");
+  const projets = getProjets();
+  const taches = getTachesRapides();
+  const tachesEnCours = taches.filter(function(t) { return !t.faite; });
+
+  app.innerHTML =
+    '<div class="header">' +
+      '<div class="greeting">Organisation</div>' +
+      '<div class="name">Projets ✅</div>' +
+    '</div>' +
+
+    '<div style="display:flex;gap:8px;padding:0 16px 8px;overflow-x:auto">' +
+      '<button onclick="renderProjets()" class="filtre-btn actif" style="white-space:nowrap">📁 Projets</button>' +
+      '<button onclick="renderTachesRapides()" class="filtre-btn" style="white-space:nowrap">⚡ Tâches rapides</button>' +
+    '</div>' +
+
+    '<div style="padding:0 16px 8px;display:flex;gap:10px">' +
+      '<button onclick="ajouterProjet()" style="flex:1;background:linear-gradient(135deg,#7c6af7,#f953c6);border:none;color:white;padding:14px;border-radius:16px;font-size:14px;font-weight:600;cursor:pointer;">+ Nouveau projet</button>' +
+      '<button onclick="genererProjetIA()" style="background:rgba(255,255,255,0.15);border:none;color:white;padding:14px 16px;border-radius:16px;font-size:14px;cursor:pointer;">✨ IA</button>' +
+    '</div>' +
+
+    (tachesEnCours.length > 0 ?
+      '<div class="card">' +
+        '<div class="word-title"><i data-lucide="zap"></i> Tâches rapides (' + tachesEnCours.length + ')</div>' +
+        tachesEnCours.slice(0, 3).map(function(t, i) {
+          const realIndex = taches.indexOf(t);
+          return '<div style="display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid rgba(255,255,255,0.08)">' +
+            '<button onclick="toggleTache(' + realIndex + ')" style="width:22px;height:22px;border-radius:50%;border:2px solid rgba(255,255,255,0.4);background:none;cursor:pointer;flex-shrink:0"></button>' +
+            '<div style="font-size:14px;flex:1">' + t.texte + '</div>' +
+            (t.deadline ? '<div style="font-size:11px;opacity:0.5">' + t.deadline + '</div>' : '') +
+          '</div>';
+        }).join("") +
+        (tachesEnCours.length > 3 ? '<div style="font-size:12px;opacity:0.5;margin-top:8px;cursor:pointer" onclick="renderTachesRapides()">+ ' + (tachesEnCours.length - 3) + ' autres tâches →</div>' : '') +
+      '</div>' : ""
+    ) +
+
+    (projets.length === 0 ?
+      '<div class="card" style="text-align:center;padding:40px;opacity:0.6">Aucun projet — crée-en un ! ✅</div>' :
+      projets.map(function(p, i) {
+        const tachesFaites = p.taches ? p.taches.filter(function(t) { return t.faite; }).length : 0;
+        const tachesTotal = p.taches ? p.taches.length : 0;
+        const progression = tachesTotal > 0 ? Math.round(tachesFaites / tachesTotal * 100) : 0;
+        return '<div class="card" style="cursor:pointer;user-select:none" ' +
+          'onclick="renderProjetDetail(' + i + ')" ' +
+          'oncontextmenu="event.preventDefault();menuProjet(' + i + ')" ' +
+          'ontouchstart="startLongPress(\'projet\',' + i + ')" ' +
+          'ontouchend="cancelLongPress()" ' +
+          'ontouchmove="cancelLongPress()">' +
+          '<div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:8px">' +
+            '<div style="font-size:15px;font-weight:700;flex:1">' + p.nom + '</div>' +
+            '<div style="font-size:11px;padding:3px 10px;border-radius:10px;background:' + statutProjetCouleur(p.statut) + ';flex-shrink:0">' + (p.statut || "en cours") + '</div>' +
+          '</div>' +
+          (p.description ? '<div style="font-size:13px;opacity:0.6;margin-bottom:8px">' + p.description + '</div>' : '') +
+          (tachesTotal > 0 ?
+            '<div>' +
+              '<div style="display:flex;justify-content:space-between;margin-bottom:4px">' +
+                '<span style="font-size:12px;opacity:0.6">' + tachesFaites + '/' + tachesTotal + ' tâches</span>' +
+                '<span style="font-size:12px;opacity:0.6">' + progression + '%</span>' +
+              '</div>' +
+              '<div style="background:rgba(255,255,255,0.15);border-radius:10px;height:6px">' +
+                '<div style="background:linear-gradient(135deg,#7c6af7,#f953c6);border-radius:10px;height:6px;width:' + progression + '%"></div>' +
+              '</div>' +
+            '</div>' : ""
+          ) +
+          (p.deadline ? '<div style="font-size:12px;opacity:0.5;margin-top:8px">📅 ' + p.deadline + '</div>' : '') +
+        '</div>';
+      }).join("")
+    ) +
+
+    '<div style="height:20px"></div>' +
+    buildNav("plus");
+  lucide.createIcons();
 }
+
+function getProjets() {
+  return JSON.parse(localStorage.getItem("projets") || "[]");
+}
+
+function sauvegarderProjets(projets) {
+  localStorage.setItem("projets", JSON.stringify(projets));
+}
+
+function getTachesRapides() {
+  return JSON.parse(localStorage.getItem("taches_rapides") || "[]");
+}
+
+function sauvegarderTachesRapides(taches) {
+  localStorage.setItem("taches_rapides", JSON.stringify(taches));
+}
+
+function statutProjetCouleur(statut) {
+  if (statut === "terminé") return "rgba(100,200,100,0.3)";
+  if (statut === "en pause") return "rgba(255,200,0,0.3)";
+  if (statut === "annulé") return "rgba(255,100,100,0.2)";
+  return "rgba(124,106,247,0.3)";
+}
+
+function ajouterProjet() {
+  afficherInput("Nom du projet", "Ex: Apprendre l'aquarelle...", "", function(nom) {
+    afficherInput("Description (optionnel)", "De quoi s'agit-il ?", "", function(desc) {
+      afficherInput("Deadline (optionnel)", "Ex: 30/06/2026", "", function(deadline) {
+        const projets = getProjets();
+        projets.unshift({
+          nom: nom,
+          description: desc || null,
+          deadline: deadline || null,
+          statut: "en cours",
+          taches: [],
+          date: new Date().toLocaleDateString("fr-FR")
+        });
+        sauvegarderProjets(projets);
+        showToast("✅ Projet créé !");
+        renderProjets();
+      });
+    });
+  });
+}
+
+async function genererProjetIA() {
+  afficherInput("Décris ton projet", "Ex: Apprendre à courir 10km en 3 mois...", "", async function(desc) {
+    showToast("✨ L'IA génère ton projet...");
+    try {
+      const res = await fetch("https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=" + KEYS.gemini, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          contents: [{ parts: [{ text: "Génère un projet structuré en JSON uniquement sans markdown. Format: {\"nom\":\"string\",\"description\":\"string\",\"taches\":[{\"texte\":\"string\",\"faite\":false,\"priorite\":\"haute|moyenne|basse\"}]}. Projet: " + desc + ". Génère 5-8 tâches concrètes et réalisables. Réponds UNIQUEMENT avec le JSON." }] }]
+        })
+      });
+      const data = await res.json();
+      const raw = data.candidates[0].content.parts[0].text.replace(/```json|```/g, "").trim();
+      const projet = JSON.parse(raw);
+      const projets = getProjets();
+      projets.unshift(Object.assign(projet, {
+        statut: "en cours",
+        date: new Date().toLocaleDateString("fr-FR")
+      }));
+      sauvegarderProjets(projets);
+      showToast("✅ Projet \"" + projet.nom + "\" créé !");
+      renderProjets();
+    } catch(e) {
+      showToast("❌ Erreur, réessaie !");
+    }
+  });
+}
+
+function renderProjetDetail(index) {
+  currentPage = "projets";
+  const app = document.getElementById("app");
+  const projets = getProjets();
+  const projet = projets[index];
+  if (!projet) return;
+
+  const tachesFaites = projet.taches ? projet.taches.filter(function(t) { return t.faite; }).length : 0;
+  const tachesTotal = projet.taches ? projet.taches.length : 0;
+  const progression = tachesTotal > 0 ? Math.round(tachesFaites / tachesTotal * 100) : 0;
+
+  app.innerHTML =
+    '<div class="header">' +
+      '<button onclick="renderProjets()" style="background:rgba(255,255,255,0.15);border:none;color:white;padding:8px 16px;border-radius:20px;font-size:14px;cursor:pointer;margin-bottom:12px;">← Retour</button>' +
+      '<div style="display:flex;justify-content:space-between;align-items:center">' +
+        '<div class="name" style="font-size:24px">' + projet.nom + '</div>' +
+        '<div style="font-size:11px;padding:4px 12px;border-radius:10px;background:' + statutProjetCouleur(projet.statut) + '">' + (projet.statut || "en cours") + '</div>' +
+      '</div>' +
+      (projet.description ? '<div class="date">' + projet.description + '</div>' : '') +
+    '</div>' +
+
+    '<div class="card">' +
+      '<div style="display:flex;justify-content:space-between;margin-bottom:8px">' +
+        '<span style="font-size:13px;opacity:0.7">' + tachesFaites + '/' + tachesTotal + ' tâches complétées</span>' +
+        '<span style="font-size:13px;font-weight:700">' + progression + '%</span>' +
+      '</div>' +
+      '<div style="background:rgba(255,255,255,0.15);border-radius:10px;height:8px">' +
+        '<div style="background:linear-gradient(135deg,#7c6af7,#f953c6);border-radius:10px;height:8px;width:' + progression + '%;transition:width 0.3s"></div>' +
+      '</div>' +
+    '</div>' +
+
+    '<div style="padding:0 16px 8px;display:flex;gap:10px">' +
+      '<button onclick="ajouterTacheProjet(' + index + ')" style="flex:1;background:rgba(255,255,255,0.15);border:none;color:white;padding:12px;border-radius:14px;font-size:13px;cursor:pointer;">+ Tâche</button>' +
+      '<button onclick="ajouterTacheProjetIA(' + index + ')" style="background:rgba(255,255,255,0.15);border:none;color:white;padding:12px 16px;border-radius:14px;font-size:13px;cursor:pointer;">✨ Tâches IA</button>' +
+    '</div>' +
+
+    '<div class="card">' +
+      '<div class="word-title"><i data-lucide="check-square"></i> Tâches</div>' +
+      (tachesTotal === 0 ?
+        '<div style="opacity:0.6;font-size:14px;margin-top:8px">Aucune tâche — ajoutes-en !</div>' :
+        projet.taches.map(function(t, ti) {
+          return '<div style="display:flex;align-items:center;gap:10px;padding:10px 0;border-bottom:1px solid rgba(255,255,255,0.08);cursor:pointer;user-select:none" ' +
+            'oncontextmenu="event.preventDefault();menuTacheProjet(' + index + ',' + ti + ')" ' +
+            'ontouchstart="startLongPress(\'tacheprojet_' + index + '\',' + ti + ')" ' +
+            'ontouchend="cancelLongPress()" ' +
+            'ontouchmove="cancelLongPress()">' +
+            '<button onclick="toggleTacheProjet(' + index + ',' + ti + ')" style="width:24px;height:24px;border-radius:50%;border:2px solid ' + (t.faite ? "#7c6af7" : "rgba(255,255,255,0.4)") + ';background:' + (t.faite ? "linear-gradient(135deg,#7c6af7,#f953c6)" : "none") + ';cursor:pointer;flex-shrink:0;display:flex;align-items:center;justify-content:center;color:white;font-size:12px">' + (t.faite ? "✓" : "") + '</button>' +
+            '<div style="flex:1">' +
+              '<div style="font-size:14px;' + (t.faite ? "opacity:0.5;text-decoration:line-through" : "") + '">' + t.texte + '</div>' +
+              (t.priorite ? '<div style="font-size:11px;opacity:0.5">' + prioriteEmoji(t.priorite) + ' ' + t.priorite + '</div>' : '') +
+            '</div>' +
+          '</div>';
+        }).join("")
+      ) +
+    '</div>' +
+
+    '<div style="height:20px"></div>' +
+    buildNav("plus");
+  lucide.createIcons();
+}
+
+function prioriteEmoji(priorite) {
+  if (priorite === "haute") return "🔴";
+  if (priorite === "moyenne") return "🟡";
+  return "🟢";
+}
+
+function ajouterTacheProjet(index) {
+  afficherInput("Nouvelle tâche", "Ex: Acheter les pinceaux...", "", function(texte) {
+    afficherMenuContextuel("Priorité", [
+      { label: "🔴 Haute", action: function() { _sauvegarderTache(index, texte, "haute"); } },
+      { label: "🟡 Moyenne", action: function() { _sauvegarderTache(index, texte, "moyenne"); } },
+      { label: "🟢 Basse", action: function() { _sauvegarderTache(index, texte, "basse"); } }
+    ]);
+  });
+}
+
+function _sauvegarderTache(index, texte, priorite) {
+  const projets = getProjets();
+  if (!projets[index].taches) projets[index].taches = [];
+  projets[index].taches.push({ texte: texte, faite: false, priorite: priorite });
+  sauvegarderProjets(projets);
+  renderProjetDetail(index);
+}
+
+async function ajouterTacheProjetIA(index) {
+  const projet = getProjets()[index];
+  showToast("✨ L'IA génère des tâches...");
+  try {
+    const res = await fetch("https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=" + KEYS.gemini, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        contents: [{ parts: [{ text: "Génère 5 tâches concrètes pour ce projet en JSON uniquement sans markdown. Format: [{\"texte\":\"string\",\"faite\":false,\"priorite\":\"haute|moyenne|basse\"}]. Projet: " + projet.nom + ". Description: " + (projet.description || "") + ". Réponds UNIQUEMENT avec le tableau JSON." }] }]
+      })
+    });
+    const data = await res.json();
+    const raw = data.candidates[0].content.parts[0].text.replace(/```json|```/g, "").trim();
+    const taches = JSON.parse(raw);
+    const projets = getProjets();
+    if (!projets[index].taches) projets[index].taches = [];
+    projets[index].taches = projets[index].taches.concat(taches);
+    sauvegarderProjets(projets);
+    showToast("✅ " + taches.length + " tâches ajoutées !");
+    renderProjetDetail(index);
+  } catch(e) {
+    showToast("❌ Erreur, réessaie !");
+  }
+}
+
+function toggleTacheProjet(projetIndex, tacheIndex) {
+  const projets = getProjets();
+  projets[projetIndex].taches[tacheIndex].faite = !projets[projetIndex].taches[tacheIndex].faite;
+  sauvegarderProjets(projets);
+  renderProjetDetail(projetIndex);
+}
+
+function menuTacheProjet(projetIndex, tacheIndex) {
+  const projets = getProjets();
+  const tache = projets[projetIndex].taches[tacheIndex];
+  afficherMenuContextuel(tache.texte, [
+    { label: "✏️ Modifier", action: function() {
+      afficherInput("Modifier la tâche", "", tache.texte, function(nouveau) {
+        projets[projetIndex].taches[tacheIndex].texte = nouveau;
+        sauvegarderProjets(projets);
+        renderProjetDetail(projetIndex);
+      });
+    }},
+    { label: "🗑️ Supprimer", action: function() {
+      projets[projetIndex].taches.splice(tacheIndex, 1);
+      sauvegarderProjets(projets);
+      renderProjetDetail(projetIndex);
+    }, danger: true }
+  ]);
+}
+
+function menuProjet(index) {
+  const projets = getProjets();
+  const projet = projets[index];
+  afficherMenuContextuel(projet.nom, [
+    { label: "▶️ En cours", action: function() { changerStatutProjetGlobal(index, "en cours"); } },
+    { label: "⏸️ En pause", action: function() { changerStatutProjetGlobal(index, "en pause"); } },
+    { label: "✅ Terminé", action: function() { changerStatutProjetGlobal(index, "terminé"); } },
+    { label: "✏️ Renommer", action: function() {
+      afficherInput("Renommer", "", projet.nom, function(nouveau) {
+        projets[index].nom = nouveau;
+        sauvegarderProjets(projets);
+        renderProjets();
+      });
+    }},
+    { label: "🗑️ Supprimer", action: function() {
+      projets.splice(index, 1);
+      sauvegarderProjets(projets);
+      showToast("🗑️ Projet supprimé");
+      renderProjets();
+    }, danger: true }
+  ]);
+}
+
+function changerStatutProjetGlobal(index, statut) {
+  const projets = getProjets();
+  projets[index].statut = statut;
+  sauvegarderProjets(projets);
+  renderProjets();
+}
+
+function renderTachesRapides() {
+  currentPage = "projets";
+  const app = document.getElementById("app");
+  const taches = getTachesRapides();
+  const enCours = taches.filter(function(t) { return !t.faite; });
+  const faites = taches.filter(function(t) { return t.faite; });
+
+  app.innerHTML =
+    '<div class="header">' +
+      '<button onclick="renderProjets()" style="background:rgba(255,255,255,0.15);border:none;color:white;padding:8px 16px;border-radius:20px;font-size:14px;cursor:pointer;margin-bottom:12px;">← Retour</button>' +
+      '<div class="name" style="font-size:28px">Tâches rapides ⚡</div>' +
+      '<div class="date">' + enCours.length + ' à faire · ' + faites.length + ' faites</div>' +
+    '</div>' +
+
+    '<div style="padding:0 16px 8px">' +
+      '<button onclick="ajouterTacheRapide()" style="width:100%;background:linear-gradient(135deg,#7c6af7,#f953c6);border:none;color:white;padding:14px;border-radius:16px;font-size:14px;font-weight:600;cursor:pointer;">+ Nouvelle tâche</button>' +
+    '</div>' +
+
+    '<div class="card">' +
+      '<div class="word-title"><i data-lucide="circle"></i> À faire (' + enCours.length + ')</div>' +
+      (enCours.length === 0 ?
+        '<div style="opacity:0.6;font-size:14px;margin-top:8px">Tout est fait ! 🎉</div>' :
+        enCours.map(function(t) {
+          const realIndex = taches.indexOf(t);
+          return '<div style="display:flex;align-items:center;gap:10px;padding:10px 0;border-bottom:1px solid rgba(255,255,255,0.08);user-select:none" ' +
+            'oncontextmenu="event.preventDefault();menuTacheRapide(' + realIndex + ')" ' +
+            'ontouchstart="startLongPress(\'tacherapide\',' + realIndex + ')" ' +
+            'ontouchend="cancelLongPress()" ' +
+            'ontouchmove="cancelLongPress()">' +
+            '<button onclick="toggleTache(' + realIndex + ')" style="width:24px;height:24px;border-radius:50%;border:2px solid rgba(255,255,255,0.4);background:none;cursor:pointer;flex-shrink:0"></button>' +
+            '<div style="flex:1">' +
+              '<div style="font-size:14px">' + t.texte + '</div>' +
+              (t.deadline ? '<div style="font-size:11px;opacity:0.5">📅 ' + t.deadline + '</div>' : '') +
+            '</div>' +
+            (t.priorite ? '<div style="font-size:16px">' + prioriteEmoji(t.priorite) + '</div>' : '') +
+          '</div>';
+        }).join("")
+      ) +
+    '</div>' +
+
+    (faites.length > 0 ?
+      '<div class="card">' +
+        '<div class="word-title"><i data-lucide="check-circle"></i> Faites (' + faites.length + ')</div>' +
+        faites.slice(0, 5).map(function(t) {
+          const realIndex = taches.indexOf(t);
+          return '<div style="display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid rgba(255,255,255,0.08);opacity:0.5;user-select:none" ' +
+            'oncontextmenu="event.preventDefault();menuTacheRapide(' + realIndex + ')" ' +
+            'ontouchstart="startLongPress(\'tacherapide\',' + realIndex + ')" ' +
+            'ontouchend="cancelLongPress()" ' +
+            'ontouchmove="cancelLongPress()">' +
+            '<div style="width:24px;height:24px;border-radius:50%;background:linear-gradient(135deg,#7c6af7,#f953c6);display:flex;align-items:center;justify-content:center;font-size:12px;color:white;flex-shrink:0">✓</div>' +
+            '<div style="font-size:14px;text-decoration:line-through">' + t.texte + '</div>' +
+          '</div>';
+        }).join("") +
+        '<button onclick="nettoyerTachesFaites()" style="width:100%;background:rgba(255,100,100,0.2);border:none;color:white;padding:10px;border-radius:12px;font-size:13px;cursor:pointer;margin-top:10px;">🗑️ Effacer les tâches faites</button>' +
+      '</div>' : ""
+    ) +
+
+    '<div style="height:20px"></div>' +
+    buildNav("plus");
+  lucide.createIcons();
+}
+
+function ajouterTacheRapide() {
+  afficherInput("Nouvelle tâche", "Ex: Appeler le médecin...", "", function(texte) {
+    afficherInput("Deadline (optionnel)", "Ex: 20/06/2026", "", function(deadline) {
+      afficherMenuContextuel("Priorité", [
+        { label: "🔴 Haute", action: function() { _sauvegarderTacheRapide(texte, deadline, "haute"); } },
+        { label: "🟡 Moyenne", action: function() { _sauvegarderTacheRapide(texte, deadline, "moyenne"); } },
+        { label: "🟢 Basse", action: function() { _sauvegarderTacheRapide(texte, deadline, "basse"); } }
+      ]);
+    });
+  });
+}
+
+function _sauvegarderTacheRapide(texte, deadline, priorite) {
+  const taches = getTachesRapides();
+  taches.unshift({ texte: texte, faite: false, priorite: priorite, deadline: deadline || null });
+  sauvegarderTachesRapides(taches);
+  renderTachesRapides();
+}
+
+function toggleTache(index) {
+  const taches = getTachesRapides();
+  taches[index].faite = !taches[index].faite;
+  sauvegarderTachesRapides(taches);
+  renderTachesRapides();
+}
+
+function menuTacheRapide(index) {
+  const taches = getTachesRapides();
+  const tache = taches[index];
+  afficherMenuContextuel(tache.texte, [
+    { label: tache.faite ? "↩️ Remettre à faire" : "✅ Marquer comme faite", action: function() {
+      taches[index].faite = !taches[index].faite;
+      sauvegarderTachesRapides(taches);
+      renderTachesRapides();
+    }},
+    { label: "✏️ Modifier", action: function() {
+      afficherInput("Modifier", "", tache.texte, function(nouveau) {
+        taches[index].texte = nouveau;
+        sauvegarderTachesRapides(taches);
+        renderTachesRapides();
+      });
+    }},
+    { label: "🗑️ Supprimer", action: function() {
+      taches.splice(index, 1);
+      sauvegarderTachesRapides(taches);
+      showToast("🗑️ Tâche supprimée");
+      renderTachesRapides();
+    }, danger: true }
+  ]);
+}
+
+function nettoyerTachesFaites() {
+  const taches = getTachesRapides().filter(function(t) { return !t.faite; });
+  sauvegarderTachesRapides(taches);
+  showToast("🗑️ Tâches faites effacées");
+  renderTachesRapides();
+}
+
 function renderDefis() {
 currentPage = "defis";
 updateAIContext();
