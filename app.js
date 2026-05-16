@@ -2073,8 +2073,10 @@ function renderWishlist(filtre) {
           'ontouchend="cancelLongPress()" ' +
           'ontouchmove="cancelLongPress()">' +
           '<div style="display:flex;justify-content:space-between;align-items:flex-start;gap:10px">' +
-            '<div style="flex:1">' +
-              '<div style="font-size:15px;font-weight:700;margin-bottom:4px">' + item.nom + '</div>' +
+  (item.lien ?
+    '<img src="' + getImageFromUrl(item.lien) + '" style="width:44px;height:44px;border-radius:10px;object-fit:cover;background:rgba(255,255,255,0.1);flex-shrink:0" onerror="this.style.display=\'none\'" />' : "") +
+  '<div style="flex:1">' +
+    '<div style="font-size:15px;font-weight:700;margin-bottom:4px">' + item.nom + '</div>' +
               '<div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:6px">' +
                 '<span style="font-size:11px;background:rgba(255,255,255,0.15);padding:3px 10px;border-radius:10px">' + (item.categorie || "autre") + '</span>' +
                 (item.prix ? '<span style="font-size:11px;background:rgba(100,200,100,0.2);padding:3px 10px;border-radius:10px">' + item.prix + '€</span>' : '') +
@@ -2117,7 +2119,7 @@ function statutWishlistCouleur(statut) {
 
 function ajouterWishlistItem() {
   afficherInput("Nom de l'article", "Ex: Aquarelles Winsor & Newton...", "", function(nom) {
-    afficherInput("Catégorie", "vêtement, livre, créatif, sport, déco, tech, autre", "autre", function(categorie) {
+    afficherCategoriesWishlist(function(categorie) {
       afficherInput("Prix estimé (optionnel)", "Ex: 45", "", function(prix) {
         afficherInput("Lien URL (optionnel)", "https://...", "", function(lien) {
           afficherInput("Note personnelle (optionnel)", "Pourquoi tu veux ça...", "", function(note) {
@@ -2128,6 +2130,7 @@ function ajouterWishlistItem() {
                 categorie: categorie,
                 prix: prix || null,
                 lien: lien || null,
+                image: lien ? getImageFromUrl(lien) : null,
                 note: note || null,
                 envie: envie,
                 utilite: utilite,
@@ -2143,6 +2146,59 @@ function ajouterWishlistItem() {
       });
     });
   });
+}
+
+function afficherCategoriesWishlist(callback) {
+  const categories = [
+    { label: "👗 Vêtement", value: "vêtement" },
+    { label: "📚 Livre", value: "livre" },
+    { label: "🎨 Créatif", value: "créatif" },
+    { label: "🏃 Sport", value: "sport" },
+    { label: "🏠 Déco", value: "déco" },
+    { label: "💻 Tech", value: "tech" },
+    { label: "💄 Beauté", value: "beauté" },
+    { label: "🍽️ Cuisine", value: "cuisine" },
+    { label: "✈️ Voyage", value: "voyage" },
+    { label: "🎁 Autre", value: "autre" },
+  ];
+
+  const overlay = document.createElement("div");
+  overlay.style.cssText = "position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:500;backdrop-filter:blur(4px);display:flex;align-items:flex-end;justify-content:center;";
+
+  const panel = document.createElement("div");
+  panel.style.cssText = "width:100%;max-width:430px;background:rgba(20,16,50,0.97);border-radius:28px 28px 0 0;padding:24px;border:1px solid rgba(255,255,255,0.15);padding-bottom:calc(24px + env(safe-area-inset-bottom));";
+
+  panel.innerHTML =
+    '<div style="font-size:17px;font-weight:700;margin-bottom:16px">Catégorie</div>' +
+    '<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:16px">' +
+      categories.map(function(c) {
+        return '<button onclick="selectCategorie(\'' + c.value + '\',this)" style="background:rgba(255,255,255,0.1);border:1px solid rgba(255,255,255,0.15);color:white;padding:12px;border-radius:14px;font-size:14px;cursor:pointer;font-family:var(--font);text-align:left">' + c.label + '</button>';
+      }).join("") +
+    '</div>' +
+    '<button onclick="this.closest(\'div[style*=fixed]\').remove()" style="width:100%;background:rgba(255,255,255,0.08);border:none;color:white;padding:14px;border-radius:14px;font-size:15px;cursor:pointer;font-family:var(--font)">Annuler</button>';
+
+  overlay.appendChild(panel);
+  document.body.appendChild(overlay);
+  window._categorieCallback = callback;
+}
+
+function selectCategorie(valeur, btn) {
+  const overlays = document.querySelectorAll('div');
+  overlays.forEach(function(o) {
+    if (o.style && o.style.position === "fixed" && o.style.zIndex === "500") o.remove();
+  });
+  if (window._categorieCallback) {
+    const cb = window._categorieCallback;
+    window._categorieCallback = null;
+    cb(valeur);
+  }
+}
+
+function getImageFromUrl(url) {
+  try {
+    const domain = new URL(url).hostname;
+    return "https://www.google.com/s2/favicons?domain=" + domain + "&sz=128";
+  } catch(e) { return null; }
 }
 
 function afficherScoresWishlist(callback) {
@@ -2194,10 +2250,16 @@ function selectScore(type, valeur) {
 
 function confirmerScores() {
   const scores = window._wishlistScores || { envie: 3, utilite: 3 };
-  const overlay = document.querySelector('div[style*="position:fixed"][style*="z-index:500"]');
-  if (overlay) overlay.remove();
+  const overlays = document.querySelectorAll('div');
+  overlays.forEach(function(o) {
+    if (o.style && o.style.position === "fixed" && o.style.zIndex === "500") {
+      o.remove();
+    }
+  });
   if (window._wishlistScoreCallback) {
-    window._wishlistScoreCallback(scores.envie, scores.utilite);
+    const cb = window._wishlistScoreCallback;
+    window._wishlistScoreCallback = null;
+    cb(scores.envie, scores.utilite);
   }
 }
 
