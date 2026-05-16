@@ -2448,8 +2448,9 @@ function statutProjetCouleur(statut) {
 
 function ajouterProjet() {
   afficherInput("Nom du projet", "Ex: Apprendre l'aquarelle...", "", function(nom) {
-    afficherInput("Description (optionnel)", "De quoi s'agit-il ?", "", function(desc) {
-      afficherInput("Deadline (optionnel)", "Ex: 30/06/2026", "", function(deadline) {
+    if (!nom) return;
+    afficherInputOptional("Description (optionnel)", "De quoi s'agit-il ?", function(desc) {
+      afficherInputOptional("Deadline (optionnel)", "Ex: 30/06/2026", function(deadline) {
         const projets = getProjets();
         projets.unshift({
           nom: nom,
@@ -2467,6 +2468,45 @@ function ajouterProjet() {
   });
 }
 
+function afficherInputOptional(titre, placeholder, callback) {
+  const overlay = document.createElement("div");
+  overlay.style.cssText = "position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:500;backdrop-filter:blur(4px);display:flex;align-items:flex-end;justify-content:center;";
+
+  const panel = document.createElement("div");
+  panel.style.cssText = "width:100%;max-width:430px;background:rgba(20,16,50,0.97);border-radius:28px 28px 0 0;padding:24px;border:1px solid rgba(255,255,255,0.15);padding-bottom:calc(24px + env(safe-area-inset-bottom));";
+
+  panel.innerHTML =
+    '<div style="font-size:17px;font-weight:700;margin-bottom:16px">' + titre + '</div>' +
+    '<input id="optional-input" type="text" placeholder="' + placeholder + '" style="width:100%;background:rgba(255,255,255,0.1);border:1px solid rgba(255,255,255,0.2);border-radius:16px;padding:14px 16px;color:white;font-size:15px;outline:none;font-family:var(--font);margin-bottom:12px;" />' +
+    '<div style="display:flex;gap:10px">' +
+      '<button id="optional-skip" style="flex:1;background:rgba(255,255,255,0.08);border:none;color:white;padding:14px;border-radius:14px;font-size:15px;cursor:pointer;font-family:var(--font)">Passer</button>' +
+      '<button id="optional-confirm" style="flex:1;background:linear-gradient(135deg,#7c6af7,#f953c6);border:none;color:white;padding:14px;border-radius:14px;font-size:15px;font-weight:600;cursor:pointer;font-family:var(--font)">Confirmer</button>' +
+    '</div>';
+
+  overlay.appendChild(panel);
+  document.body.appendChild(overlay);
+
+  const input = document.getElementById("optional-input");
+  setTimeout(function() { input.focus(); }, 100);
+
+  function fermer(valeur) {
+    overlay.remove();
+    callback(valeur);
+  }
+
+  document.getElementById("optional-confirm").onclick = function() {
+    fermer(input.value.trim() || null);
+  };
+
+  document.getElementById("optional-skip").onclick = function() {
+    fermer(null);
+  };
+
+  input.addEventListener("keydown", function(e) {
+    if (e.key === "Enter") fermer(input.value.trim() || null);
+  });
+}
+
 async function genererProjetIA() {
   afficherInput("Décris ton projet", "Ex: Apprendre à courir 10km en 3 mois...", "", async function(desc) {
     showToast("✨ L'IA génère ton projet...");
@@ -2475,7 +2515,7 @@ async function genererProjetIA() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          contents: [{ parts: [{ text: "Génère un projet structuré en JSON uniquement sans markdown. Format: {\"nom\":\"string\",\"description\":\"string\",\"taches\":[{\"texte\":\"string\",\"faite\":false,\"priorite\":\"haute|moyenne|basse\"}]}. Projet: " + desc + ". Génère 5-8 tâches concrètes et réalisables. Réponds UNIQUEMENT avec le JSON." }] }]
+          contents: [{ parts: [{ text: "Tu es un assistant personnel pour Solène, une jeune femme active qui fait du sport, de la créativité et des voyages. Génère un projet structuré en JSON uniquement sans markdown. Format: {\"nom\":\"string\",\"description\":\"string\",\"taches\":[{\"texte\":\"string\",\"faite\":false,\"priorite\":\"haute|moyenne|basse\"}]}. Projet demandé: " + desc + ". Interprète la demande dans le contexte du quotidien (sport, créativité, voyages, apprentissage personnel). Génère 5-8 tâches concrètes et réalisables. Réponds UNIQUEMENT avec le JSON." }] }]
         })
       });
       const data = await res.json();
