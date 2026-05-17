@@ -184,6 +184,34 @@ return '<nav class="nav">' +
 }
 
 // ============================================
+// APPLE SANTÉ
+// ============================================
+async function lireDonneesSante() {
+  try {
+    const params = new URLSearchParams(window.location.search);
+    if (params.get("sante")) {
+      const donnees = {
+        pas: parseInt(params.get("pas")) || 0,
+        minutes: parseInt(params.get("minutes")) || 0
+      };
+      localStorage.setItem("sante_data", JSON.stringify(donnees));
+      // Nettoie l'URL
+      window.history.replaceState({}, "", window.location.pathname);
+      return donnees;
+    }
+    const saved = localStorage.getItem("sante_data");
+    return saved ? JSON.parse(saved) : { pas: 0, minutes: 0 };
+  } catch(e) {
+    return { pas: 0, minutes: 0 };
+  }
+}
+
+function getSanteDonnees() {
+  const saved = localStorage.getItem("sante_data");
+  return saved ? JSON.parse(saved) : { pas: 0, minutes: 0 };
+}
+
+// ============================================
 // PAGE D'ACCUEIL
 // ============================================
 async function renderAccueil() {
@@ -338,6 +366,16 @@ function renderSport() {
     // Stats semaine
     '<div class="card">' +
       '<div class="word-title"><i data-lucide="bar-chart-2"></i> Cette semaine</div>' +
+      '<div class="card">' +
+  '<div class="word-title"><i data-lucide="heart"></i> Aujourd\'hui — Apple Santé</div>' +
+  '<div class="summary-grid">' +
+    '<div class="summary-item"><div class="value">' + (getSanteDonnees().pas || "--") + '</div><div class="label">Pas</div></div>' +
+    '<div class="summary-item"><div class="value">' + (getSanteDonnees().minutes || "--") + '</div><div class="label">Min activité</div></div>' +
+    '<div class="summary-item"><div class="value">' + getStreakJours() + 'j</div><div class="label">Streak</div></div>' +
+    '<div class="summary-item"><div class="value">' + (getSanteDonnees().maj || "--") + '</div><div class="label">Mis à jour</div></div>' +
+  '</div>' +
+  '<button onclick="importerDonneesSante()" style="width:100%;background:rgba(255,255,255,0.1);border:1px solid rgba(255,255,255,0.2);color:white;padding:10px;border-radius:12px;font-size:13px;cursor:pointer;margin-top:10px;">❤️ Importer depuis Santé</button>' +
+'</div>' +
       '<div class="summary-grid">' +
         '<div class="summary-item"><div class="value">' + semaine.length + '</div><div class="label">Séances</div></div>' +
         '<div class="summary-item"><div class="value">' + getTotalSeries(semaine) + '</div><div class="label">Séries</div></div>' +
