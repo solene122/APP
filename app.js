@@ -519,6 +519,7 @@ function startLongPress(type, index) {
   longPressTimer = setTimeout(function() {
     if (type === "programme") afficherMenuProgramme(index);
     else if (type === "seance") afficherMenuSeance(index);
+    else if (type === "journal") menuEntreeJournal(index);
     else if (type === "projet") menuProjet(index);
     else if (type === "tacherapide") menuTacheRapide(index);
     else if (type.startsWith("tacheprojet_")) {
@@ -2589,10 +2590,543 @@ async function analyserWishlistItemIA(index) {
 }
 
 function renderMental() {
-currentPage = "mental";
-updateAIContext();
-renderStub("Mental 🧠", "Tracker d'humeur, mini-jeux et espace écriture — bientôt !", "renderMenu()");
+  currentPage = "mental";
+  updateAIContext();
+  const app = document.getElementById("app");
+  const humeurData = getHistoriqueHumeur();
+  const derniereHumeur = humeurData.length > 0 ? humeurData[0] : null;
+
+  app.innerHTML =
+    '<div class="header">' +
+      '<button onclick="renderMenu()" style="background:rgba(255,255,255,0.15);border:none;color:white;padding:8px 16px;border-radius:20px;font-size:14px;cursor:pointer;margin-bottom:12px;">← Retour</button>' +
+      '<div class="name">Mental 🧠</div>' +
+    '</div>' +
+
+    '<div style="display:flex;gap:8px;padding:0 16px 8px;overflow-x:auto">' +
+      '<button onclick="renderMental()" class="filtre-btn actif" style="white-space:nowrap">🧠 Accueil</button>' +
+      '<button onclick="renderHistoriqueHumeur()" class="filtre-btn" style="white-space:nowrap">📊 Historique</button>' +
+      '<button onclick="renderEcriture()" class="filtre-btn" style="white-space:nowrap">✍️ Écriture</button>' +
+      '<button onclick="renderMiniJeux()" class="filtre-btn" style="white-space:nowrap">🎮 Mini-jeux</button>' +
+    '</div>' +
+
+    // Humeur du jour
+    '<div class="card">' +
+      '<div class="word-title"><i data-lucide="smile"></i> Comment tu vas aujourd\'hui ?</div>' +
+      '<div style="display:flex;justify-content:space-around;margin:12px 0">' +
+        [
+          { emoji: "😴", label: "Épuisée", val: 1 },
+          { emoji: "😔", label: "Pas top", val: 2 },
+          { emoji: "😐", label: "Neutre", val: 3 },
+          { emoji: "🙂", label: "Bien", val: 4 },
+          { emoji: "😄", label: "Super !", val: 5 }
+        ].map(function(h) {
+          const saved = getHumeurSauvegardee("matin");
+          return '<button onclick="sauvegarderHumeurMental(' + h.val + ')" style="background:' + (saved == h.val ? "rgba(124,106,247,0.4)" : "rgba(255,255,255,0.1)") + ';border:' + (saved == h.val ? "2px solid rgba(124,106,247,0.8)" : "1px solid rgba(255,255,255,0.15)") + ';border-radius:16px;padding:10px;cursor:pointer;text-align:center;flex:1;margin:0 3px">' +
+            '<div style="font-size:24px">' + h.emoji + '</div>' +
+            '<div style="font-size:10px;color:white;opacity:0.7;margin-top:4px">' + h.label + '</div>' +
+          '</button>';
+        }).join("") +
+      '</div>' +
+    '</div>' +
+
+    // Stats humeur
+    '<div class="card">' +
+      '<div class="word-title"><i data-lucide="trending-up"></i> Cette semaine</div>' +
+      '<div class="summary-grid">' +
+        '<div class="summary-item"><div class="value">' + getMoyenneHumeur() + '</div><div class="label">Humeur moyenne</div></div>' +
+        '<div class="summary-item"><div class="value">' + humeurData.length + '</div><div class="label">Jours suivis</div></div>' +
+        '<div class="summary-item"><div class="value">' + getMeilleureHumeur() + '</div><div class="label">Meilleur jour</div></div>' +
+        '<div class="summary-item"><div class="value">' + getStreakHumeur() + 'j</div><div class="label">Streak</div></div>' +
+      '</div>' +
+    '</div>' +
+
+    // Actions rapides
+    '<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;padding:0 16px">' +
+      '<div onclick="renderEcriture()" style="background:rgba(255,255,255,0.1);border:1px solid rgba(255,255,255,0.15);border-radius:16px;padding:16px;text-align:center;cursor:pointer">' +
+        '<div style="font-size:28px;margin-bottom:6px">✍️</div>' +
+        '<div style="font-size:13px;font-weight:600">Écriture libre</div>' +
+        '<div style="font-size:11px;opacity:0.5;margin-top:2px">' + getNbEntreesJournal() + ' entrées</div>' +
+      '</div>' +
+      '<div onclick="renderMiniJeux()" style="background:rgba(255,255,255,0.1);border:1px solid rgba(255,255,255,0.15);border-radius:16px;padding:16px;text-align:center;cursor:pointer">' +
+        '<div style="font-size:28px;margin-bottom:6px">🎮</div>' +
+        '<div style="font-size:13px;font-weight:600">Mini-jeux</div>' +
+        '<div style="font-size:11px;opacity:0.5;margin-top:2px">Sudoku, mots...</div>' +
+      '</div>' +
+    '</div>' +
+
+    // Prompt du jour
+    '<div class="card">' +
+      '<div class="word-title"><i data-lucide="feather"></i> Prompt du jour</div>' +
+      '<div style="font-size:14px;line-height:1.6;opacity:0.9;margin:8px 0">' + getPromptDuJour() + '</div>' +
+      '<button onclick="renderEcriture(getPromptDuJour())" style="width:100%;background:rgba(255,255,255,0.1);border:none;color:white;padding:10px;border-radius:12px;font-size:13px;cursor:pointer;margin-top:8px;">✍️ Écrire là-dessus</button>' +
+    '</div>' +
+
+    '<div style="height:20px"></div>' +
+    buildNav("plus");
+  lucide.createIcons();
 }
+
+// ============================================
+// HUMEUR MENTAL
+// ============================================
+function sauvegarderHumeurMental(valeur) {
+  const today = new Date().toDateString();
+  const dateStr = new Date().toLocaleDateString("fr-FR");
+  localStorage.setItem("humeur_matin_" + today, valeur);
+  const historique = getHistoriqueHumeur();
+  const existe = historique.find(function(h) { return h.dateISO === today; });
+  if (!existe) {
+    historique.unshift({ valeur: valeur, date: dateStr, dateISO: today });
+    localStorage.setItem("historique_humeur", JSON.stringify(historique));
+  } else {
+    existe.valeur = valeur;
+    localStorage.setItem("historique_humeur", JSON.stringify(historique));
+  }
+  showToast("😊 Humeur sauvegardée !");
+  renderMental();
+}
+
+function getHistoriqueHumeur() {
+  return JSON.parse(localStorage.getItem("historique_humeur") || "[]");
+}
+
+function getMoyenneHumeur() {
+  const data = getHistoriqueHumeur().slice(0, 7);
+  if (data.length === 0) return "--";
+  const moy = data.reduce(function(t, h) { return t + h.valeur; }, 0) / data.length;
+  const emojis = ["", "😴", "😔", "😐", "🙂", "😄"];
+  return emojis[Math.round(moy)] || "--";
+}
+
+function getMeilleureHumeur() {
+  const data = getHistoriqueHumeur().slice(0, 7);
+  if (data.length === 0) return "--";
+  const max = Math.max.apply(null, data.map(function(h) { return h.valeur; }));
+  const emojis = ["", "😴", "😔", "😐", "🙂", "😄"];
+  return emojis[max] || "--";
+}
+
+function getStreakHumeur() {
+  const historique = getHistoriqueHumeur();
+  if (historique.length === 0) return 0;
+  let streak = 0;
+  const aujourd = new Date(); aujourd.setHours(0,0,0,0);
+  for (var i = 0; i < 30; i++) {
+    const jour = new Date(aujourd); jour.setDate(aujourd.getDate() - i);
+    const trouve = historique.find(function(h) {
+      return new Date(h.dateISO).toDateString() === jour.toDateString();
+    });
+    if (trouve) streak++;
+    else if (i > 0) break;
+  }
+  return streak;
+}
+
+function renderHistoriqueHumeur() {
+  currentPage = "mental";
+  const app = document.getElementById("app");
+  const historique = getHistoriqueHumeur();
+  const emojis = ["", "😴", "😔", "😐", "🙂", "😄"];
+  const labels = ["", "Épuisée", "Pas top", "Neutre", "Bien", "Super !"];
+
+  app.innerHTML =
+    '<div class="header">' +
+      '<button onclick="renderMental()" style="background:rgba(255,255,255,0.15);border:none;color:white;padding:8px 16px;border-radius:20px;font-size:14px;cursor:pointer;margin-bottom:12px;">← Retour</button>' +
+      '<div class="name" style="font-size:26px">Historique humeur 📊</div>' +
+    '</div>' +
+
+    '<div class="card">' +
+      '<div class="word-title"><i data-lucide="bar-chart-2"></i> Les 7 derniers jours</div>' +
+      '<div style="display:flex;align-items:flex-end;gap:6px;height:80px;margin-top:12px">' +
+        (function() {
+          var bars = "";
+          for (var i = 6; i >= 0; i--) {
+            const jour = new Date(); jour.setDate(jour.getDate() - i);
+            const trouve = historique.find(function(h) {
+              return new Date(h.dateISO).toDateString() === jour.toDateString();
+            });
+            const val = trouve ? trouve.valeur : 0;
+            const hauteur = val > 0 ? (val / 5 * 100) : 10;
+            const couleur = val >= 4 ? "#7c6af7" : val >= 3 ? "#f4a261" : val > 0 ? "#e63946" : "rgba(255,255,255,0.1)";
+            bars += '<div style="flex:1;display:flex;flex-direction:column;align-items:center;gap:4px">' +
+              '<div style="font-size:14px">' + (val > 0 ? emojis[val] : "") + '</div>' +
+              '<div style="width:100%;background:' + couleur + ';border-radius:6px;height:' + hauteur + '%;min-height:4px"></div>' +
+              '<div style="font-size:9px;opacity:0.5">' + jour.toLocaleDateString("fr-FR", { weekday: "short" }) + '</div>' +
+            '</div>';
+          }
+          return bars;
+        })() +
+      '</div>' +
+    '</div>' +
+
+    '<div class="card">' +
+      '<div class="word-title"><i data-lucide="clock"></i> Historique complet</div>' +
+      (historique.length === 0 ?
+        '<div style="opacity:0.6;font-size:14px;margin-top:8px">Aucune donnée pour l\'instant</div>' :
+        historique.map(function(h) {
+          return '<div style="display:flex;align-items:center;gap:12px;padding:10px 0;border-bottom:1px solid rgba(255,255,255,0.08)">' +
+            '<div style="font-size:24px">' + emojis[h.valeur] + '</div>' +
+            '<div>' +
+              '<div style="font-size:14px;font-weight:600">' + labels[h.valeur] + '</div>' +
+              '<div style="font-size:12px;opacity:0.5">' + h.date + '</div>' +
+            '</div>' +
+          '</div>';
+        }).join("")
+      ) +
+    '</div>' +
+
+    '<div style="height:20px"></div>' +
+    buildNav("plus");
+  lucide.createIcons();
+}
+
+// ============================================
+// ÉCRITURE
+// ============================================
+const promptsDuJour = [
+  "Qu'est-ce qui t'a fait sourire aujourd'hui ?",
+  "Décris un moment où tu t'es sentie fière de toi récemment.",
+  "Qu'est-ce que tu voudrais laisser derrière toi ce mois-ci ?",
+  "Si tu pouvais parler à ton futur toi dans 1 an, que lui dirais-tu ?",
+  "Qu'est-ce qui te donne de l'énergie en ce moment ?",
+  "Décris ton endroit idéal pour te ressourcer.",
+  "Quelle petite victoire as-tu eu cette semaine ?",
+  "Qu'est-ce que tu apprends sur toi-même en ce moment ?",
+  "Décris une personne qui t'inspire et pourquoi.",
+  "Qu'est-ce que tu ferais si tu n'avais pas peur ?",
+  "Quelle habitude voudrais-tu cultiver ?",
+  "Qu'est-ce qui te manque en ce moment ?",
+  "Décris un rêve que tu as fait récemment.",
+  "Qu'est-ce qui te rend unique selon toi ?",
+];
+
+function getPromptDuJour() {
+  const index = (new Date().getDate() + new Date().getMonth()) % promptsDuJour.length;
+  return promptsDuJour[index];
+}
+
+function getNbEntreesJournal() {
+  return JSON.parse(localStorage.getItem("journal_entrees") || "[]").length;
+}
+
+function renderEcriture(promptInitial) {
+  currentPage = "mental";
+  const app = document.getElementById("app");
+  const entrees = JSON.parse(localStorage.getItem("journal_entrees") || "[]");
+
+  app.innerHTML =
+    '<div class="header">' +
+      '<button onclick="renderMental()" style="background:rgba(255,255,255,0.15);border:none;color:white;padding:8px 16px;border-radius:20px;font-size:14px;cursor:pointer;margin-bottom:12px;">← Retour</button>' +
+      '<div class="name" style="font-size:26px">Écriture ✍️</div>' +
+    '</div>' +
+
+    '<div class="card">' +
+      '<div class="word-title"><i data-lucide="feather"></i> Nouvelle entrée</div>' +
+      (promptInitial ? '<div style="font-size:13px;opacity:0.6;font-style:italic;margin-bottom:10px">"' + promptInitial + '"</div>' : '') +
+      '<textarea id="journal-input" placeholder="Écris librement..." style="width:100%;background:rgba(255,255,255,0.08);border:1px solid rgba(255,255,255,0.15);border-radius:14px;padding:14px;color:white;font-size:15px;outline:none;font-family:var(--font);min-height:150px;resize:none;line-height:1.6">' + (promptInitial ? promptInitial + "\n\n" : "") + '</textarea>' +
+      '<div style="display:flex;gap:10px;margin-top:10px">' +
+        '<button onclick="sauvegarderEntreeJournal()" style="flex:1;background:linear-gradient(135deg,#7c6af7,#f953c6);border:none;color:white;padding:12px;border-radius:14px;font-size:14px;font-weight:600;cursor:pointer;">💾 Sauvegarder</button>' +
+        '<button onclick="genererPromptIA()" style="background:rgba(255,255,255,0.15);border:none;color:white;padding:12px 16px;border-radius:14px;font-size:14px;cursor:pointer;">✨ Prompt IA</button>' +
+      '</div>' +
+    '</div>' +
+
+    '<div class="card">' +
+      '<div class="word-title"><i data-lucide="book-open"></i> Mes entrées (' + entrees.length + ')</div>' +
+      (entrees.length === 0 ?
+        '<div style="opacity:0.6;font-size:14px;margin-top:8px">Aucune entrée pour l\'instant ✍️</div>' :
+        entrees.slice(0, 5).map(function(e, i) {
+          return '<div style="padding:10px 0;border-bottom:1px solid rgba(255,255,255,0.08);cursor:pointer;user-select:none" ' +
+            'oncontextmenu="event.preventDefault();menuEntreeJournal(' + i + ')" ' +
+            'ontouchstart="startLongPress(\'journal\',' + i + ')" ' +
+            'ontouchend="cancelLongPress()" ' +
+            'ontouchmove="cancelLongPress()">' +
+            '<div style="font-size:13px;opacity:0.6;margin-bottom:4px">' + e.date + '</div>' +
+            '<div style="font-size:14px;line-height:1.5;opacity:0.9">' + e.texte.substring(0, 100) + (e.texte.length > 100 ? "..." : "") + '</div>' +
+          '</div>';
+        }).join("")
+      ) +
+    '</div>' +
+
+    '<div style="height:20px"></div>' +
+    buildNav("plus");
+  lucide.createIcons();
+}
+
+function sauvegarderEntreeJournal() {
+  const input = document.getElementById("journal-input");
+  if (!input || !input.value.trim()) {
+    showToast("Écris quelque chose d'abord !");
+    return;
+  }
+  const entrees = JSON.parse(localStorage.getItem("journal_entrees") || "[]");
+  entrees.unshift({
+    texte: input.value.trim(),
+    date: new Date().toLocaleDateString("fr-FR", { weekday: "long", day: "numeric", month: "long" }),
+    dateISO: new Date().toISOString()
+  });
+  localStorage.setItem("journal_entrees", JSON.stringify(entrees));
+  showToast("💾 Entrée sauvegardée !");
+  renderEcriture();
+}
+
+async function genererPromptIA() {
+  showToast("✨ L'IA cherche l'inspiration...");
+  try {
+    const res = await fetch("https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=" + KEYS.gemini, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        contents: [{ parts: [{ text: "Génère un prompt d'écriture introspectif et bienveillant pour Solène. Une seule question courte et profonde en français, sans introduction." }] }]
+      })
+    });
+    const data = await res.json();
+    const prompt = data.candidates[0].content.parts[0].text.trim();
+    const input = document.getElementById("journal-input");
+    if (input) input.value = prompt + "\n\n";
+    showToast("✨ Prompt généré !");
+  } catch(e) {
+    showToast("❌ Erreur, réessaie !");
+  }
+}
+
+function menuEntreeJournal(index) {
+  const entrees = JSON.parse(localStorage.getItem("journal_entrees") || "[]");
+  afficherMenuContextuel(entrees[index].date, [
+    { label: "🗑️ Supprimer", action: function() {
+      entrees.splice(index, 1);
+      localStorage.setItem("journal_entrees", JSON.stringify(entrees));
+      showToast("🗑️ Entrée supprimée");
+      renderEcriture();
+    }, danger: true }
+  ]);
+}
+
+// ============================================
+// MINI-JEUX
+// ============================================
+function renderMiniJeux() {
+  currentPage = "mental";
+  const app = document.getElementById("app");
+
+  app.innerHTML =
+    '<div class="header">' +
+      '<button onclick="renderMental()" style="background:rgba(255,255,255,0.15);border:none;color:white;padding:8px 16px;border-radius:20px;font-size:14px;cursor:pointer;margin-bottom:12px;">← Retour</button>' +
+      '<div class="name" style="font-size:26px">Mini-jeux 🎮</div>' +
+    '</div>' +
+
+    '<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;padding:0 16px">' +
+      jeuCard("🔢", "Sudoku", "Entraîne ta logique", "renderSudoku()") +
+      jeuCard("🔤", "Mot mystère", "Trouve le mot caché", "renderMotMystere()") +
+      jeuCard("🧠", "Memory", "Teste ta mémoire", "renderMemory()") +
+      jeuCard("➕", "Calcul mental", "Rapidité et précision", "renderCalculMental()") +
+    '</div>' +
+
+    '<div style="height:20px"></div>' +
+    buildNav("plus");
+  lucide.createIcons();
+}
+
+function jeuCard(emoji, titre, desc, fn) {
+  return '<div onclick="' + fn + '" style="background:rgba(255,255,255,0.1);border:1px solid rgba(255,255,255,0.15);border-radius:16px;padding:20px;text-align:center;cursor:pointer">' +
+    '<div style="font-size:36px;margin-bottom:8px">' + emoji + '</div>' +
+    '<div style="font-size:14px;font-weight:700;margin-bottom:4px">' + titre + '</div>' +
+    '<div style="font-size:12px;opacity:0.6">' + desc + '</div>' +
+  '</div>';
+}
+
+function renderSudoku() {
+  currentPage = "mental";
+  const app = document.getElementById("app");
+  const grille = genererSudoku();
+
+  app.innerHTML =
+    '<div class="header">' +
+      '<button onclick="renderMiniJeux()" style="background:rgba(255,255,255,0.15);border:none;color:white;padding:8px 16px;border-radius:20px;font-size:14px;cursor:pointer;margin-bottom:12px;">← Retour</button>' +
+      '<div class="name" style="font-size:26px">Sudoku 🔢</div>' +
+    '</div>' +
+    '<div class="card">' +
+      '<div style="display:grid;grid-template-columns:repeat(9,1fr);gap:2px;max-width:320px;margin:0 auto">' +
+        grille.map(function(cell, i) {
+          const row = Math.floor(i / 9);
+          const col = i % 9;
+          const borderRight = (col === 2 || col === 5) ? "2px solid rgba(255,255,255,0.4)" : "1px solid rgba(255,255,255,0.1)";
+          const borderBottom = (row === 2 || row === 5) ? "2px solid rgba(255,255,255,0.4)" : "1px solid rgba(255,255,255,0.1)";
+          return '<input type="number" min="1" max="9" value="' + (cell || "") + '" ' +
+            (cell ? 'readonly ' : '') +
+            'style="width:100%;aspect-ratio:1;text-align:center;background:' + (cell ? "rgba(255,255,255,0.1)" : "rgba(255,255,255,0.05)") + ';border-right:' + borderRight + ';border-bottom:' + borderBottom + ';border-top:none;border-left:none;color:' + (cell ? "rgba(200,180,255,1)" : "white") + ';font-size:14px;font-weight:' + (cell ? "700" : "400") + ';outline:none;-webkit-appearance:none;padding:0;" />';
+        }).join("") +
+      '</div>' +
+      '<button onclick="renderSudoku()" style="width:100%;background:rgba(255,255,255,0.1);border:none;color:white;padding:12px;border-radius:14px;font-size:14px;cursor:pointer;margin-top:16px;">🔄 Nouvelle grille</button>' +
+    '</div>' +
+    '<div style="height:20px"></div>' +
+    buildNav("plus");
+  lucide.createIcons();
+}
+
+function genererSudoku() {
+  const grilles = [
+    [5,3,0,0,7,0,0,0,0,6,0,0,1,9,5,0,0,0,0,9,8,0,0,0,0,6,0,8,0,0,0,6,0,0,0,3,4,0,0,8,0,3,0,0,1,7,0,0,0,2,0,0,0,6,0,6,0,0,0,0,2,8,0,0,0,0,4,1,9,0,0,5,0,0,0,0,8,0,0,7,9],
+    [0,0,0,2,6,0,7,0,1,6,8,0,0,7,0,0,9,0,1,9,0,0,0,4,5,0,0,8,2,0,1,0,0,0,4,0,0,0,4,6,0,2,9,0,0,0,5,0,0,0,3,0,2,8,0,0,9,3,0,0,0,7,4,0,4,0,0,5,0,0,3,6,7,0,3,0,1,8,0,0,0],
+  ];
+  return grilles[Math.floor(Math.random() * grilles.length)];
+}
+
+function renderMotMystere() {
+  currentPage = "mental";
+  const app = document.getElementById("app");
+  const mots = ["SERENITE", "COURAGE", "LUMIERE", "VICTOIRE", "CREATION", "AVENTURE", "LIBERTE", "HARMONIE"];
+  const mot = mots[Math.floor(Math.random() * mots.length)];
+  const lettresMelangees = mot.split("").sort(function() { return Math.random() - 0.5; }).join(" ");
+
+  app.innerHTML =
+    '<div class="header">' +
+      '<button onclick="renderMiniJeux()" style="background:rgba(255,255,255,0.15);border:none;color:white;padding:8px 16px;border-radius:20px;font-size:14px;cursor:pointer;margin-bottom:12px;">← Retour</button>' +
+      '<div class="name" style="font-size:26px">Mot mystère 🔤</div>' +
+    '</div>' +
+    '<div class="card" style="text-align:center">' +
+      '<div style="font-size:13px;opacity:0.6;margin-bottom:16px">Retrouve le mot caché</div>' +
+      '<div style="font-size:32px;font-weight:700;letter-spacing:8px;margin-bottom:24px">' + lettresMelangees + '</div>' +
+      '<input id="mot-input" type="text" placeholder="Ta réponse..." style="width:100%;background:rgba(255,255,255,0.1);border:1px solid rgba(255,255,255,0.2);border-radius:14px;padding:14px;color:white;font-size:16px;text-align:center;outline:none;font-family:var(--font);text-transform:uppercase;margin-bottom:12px" />' +
+      '<div style="display:flex;gap:10px">' +
+        '<button onclick="verifierMotMystere(\'' + mot + '\')" style="flex:1;background:linear-gradient(135deg,#7c6af7,#f953c6);border:none;color:white;padding:12px;border-radius:14px;font-size:14px;font-weight:600;cursor:pointer;">Vérifier ✓</button>' +
+        '<button onclick="renderMotMystere()" style="background:rgba(255,255,255,0.15);border:none;color:white;padding:12px 16px;border-radius:14px;font-size:14px;cursor:pointer;">🔄</button>' +
+      '</div>' +
+      '<div id="resultat-mot" style="margin-top:12px;font-size:16px"></div>' +
+    '</div>' +
+    '<div style="height:20px"></div>' +
+    buildNav("plus");
+  lucide.createIcons();
+}
+
+function verifierMotMystere(mot) {
+  const input = document.getElementById("mot-input");
+  const resultat = document.getElementById("resultat-mot");
+  if (!input || !resultat) return;
+  if (input.value.toUpperCase() === mot) {
+    resultat.innerHTML = '<span style="color:#4CAF50;font-weight:700">🎉 Bravo ! C\'est correct !</span>';
+  } else {
+    resultat.innerHTML = '<span style="color:#e63946">❌ Pas tout à fait... Réessaie !</span>';
+  }
+}
+
+function renderMemory() {
+  currentPage = "mental";
+  const app = document.getElementById("app");
+  const emojis = ["🌸", "🦋", "🌊", "🎨", "🏔️", "🌙", "⭐", "🎵"];
+  const cartes = [...emojis, ...emojis].sort(function() { return Math.random() - 0.5; });
+  var retournees = new Array(16).fill(false);
+  var trouvees = new Array(16).fill(false);
+  var premiere = null;
+  var enAttente = false;
+
+  function renderCartes() {
+    const grid = document.getElementById("memory-grid");
+    if (!grid) return;
+    grid.innerHTML = cartes.map(function(e, i) {
+      return '<div onclick="flipCarte(' + i + ')" style="aspect-ratio:1;border-radius:12px;background:' +
+        (trouvees[i] ? "rgba(124,106,247,0.3)" : retournees[i] ? "rgba(255,255,255,0.2)" : "rgba(255,255,255,0.1)") +
+        ';border:1px solid rgba(255,255,255,0.2);display:flex;align-items:center;justify-content:center;font-size:24px;cursor:pointer;transition:all 0.2s">' +
+        (retournees[i] || trouvees[i] ? e : "") +
+      '</div>';
+    }).join("");
+  }
+
+  window.flipCarte = function(i) {
+    if (enAttente || retournees[i] || trouvees[i]) return;
+    retournees[i] = true;
+    renderCartes();
+    if (premiere === null) {
+      premiere = i;
+    } else {
+      if (cartes[premiere] === cartes[i] && premiere !== i) {
+        trouvees[premiere] = true;
+        trouvees[i] = true;
+        premiere = null;
+        if (trouvees.every(function(t) { return t; })) {
+          setTimeout(function() { showToast("🎉 Bravo ! Tu as tout trouvé !"); }, 300);
+        }
+      } else {
+        enAttente = true;
+        setTimeout(function() {
+          retournees[premiere] = false;
+          retournees[i] = false;
+          premiere = null;
+          enAttente = false;
+          renderCartes();
+        }, 800);
+      }
+    }
+  };
+
+  app.innerHTML =
+    '<div class="header">' +
+      '<button onclick="renderMiniJeux()" style="background:rgba(255,255,255,0.15);border:none;color:white;padding:8px 16px;border-radius:20px;font-size:14px;cursor:pointer;margin-bottom:12px;">← Retour</button>' +
+      '<div class="name" style="font-size:26px">Memory 🧠</div>' +
+    '</div>' +
+    '<div class="card">' +
+      '<div id="memory-grid" style="display:grid;grid-template-columns:repeat(4,1fr);gap:8px"></div>' +
+      '<button onclick="renderMemory()" style="width:100%;background:rgba(255,255,255,0.1);border:none;color:white;padding:12px;border-radius:14px;font-size:14px;cursor:pointer;margin-top:16px;">🔄 Nouvelle partie</button>' +
+    '</div>' +
+    '<div style="height:20px"></div>' +
+    buildNav("plus");
+  lucide.createIcons();
+  renderCartes();
+}
+
+function renderCalculMental() {
+  currentPage = "mental";
+  const app = document.getElementById("app");
+  var score = 0;
+  var question = genererQuestion();
+
+  function genererQuestion() {
+    const ops = ["+", "-", "×"];
+    const op = ops[Math.floor(Math.random() * ops.length)];
+    var a, b, reponse;
+    if (op === "+") { a = Math.floor(Math.random() * 50) + 1; b = Math.floor(Math.random() * 50) + 1; reponse = a + b; }
+    else if (op === "-") { a = Math.floor(Math.random() * 50) + 20; b = Math.floor(Math.random() * 20) + 1; reponse = a - b; }
+    else { a = Math.floor(Math.random() * 12) + 1; b = Math.floor(Math.random() * 12) + 1; reponse = a * b; }
+    return { texte: a + " " + op + " " + b + " = ?", reponse: reponse };
+  }
+
+  function afficherQuestion() {
+    const q = document.getElementById("calc-question");
+    const input = document.getElementById("calc-input");
+    if (q) q.textContent = question.texte;
+    if (input) { input.value = ""; input.focus(); }
+  }
+
+  window.verifierCalcul = function() {
+    const input = document.getElementById("calc-input");
+    if (!input) return;
+    if (parseInt(input.value) === question.reponse) {
+      score++;
+      document.getElementById("calc-score").textContent = score;
+      showToast("✅ Correct !");
+    } else {
+      showToast("❌ " + question.reponse + " était la bonne réponse");
+    }
+    question = genererQuestion();
+    afficherQuestion();
+  };
+
+  app.innerHTML =
+    '<div class="header">' +
+      '<button onclick="renderMiniJeux()" style="background:rgba(255,255,255,0.15);border:none;color:white;padding:8px 16px;border-radius:20px;font-size:14px;cursor:pointer;margin-bottom:12px;">← Retour</button>' +
+      '<div class="name" style="font-size:26px">Calcul mental ➕</div>' +
+    '</div>' +
+    '<div class="card" style="text-align:center">' +
+      '<div style="font-size:13px;opacity:0.6;margin-bottom:8px">Score : <span id="calc-score">' + score + '</span></div>' +
+      '<div id="calc-question" style="font-size:36px;font-weight:700;margin:20px 0"></div>' +
+      '<input id="calc-input" type="number" placeholder="Ta réponse..." style="width:100%;background:rgba(255,255,255,0.1);border:1px solid rgba(255,255,255,0.2);border-radius:14px;padding:14px;color:white;font-size:20px;text-align:center;outline:none;font-family:var(--font);margin-bottom:12px" />' +
+      '<button onclick="verifierCalcul()" style="width:100%;background:linear-gradient(135deg,#7c6af7,#f953c6);border:none;color:white;padding:14px;border-radius:14px;font-size:15px;font-weight:600;cursor:pointer;">Valider ✓</button>' +
+    '</div>' +
+    '<div style="height:20px"></div>' +
+    buildNav("plus");
+  lucide.createIcons();
+  afficherQuestion();
+}
+
 function renderVoyages() {
 currentPage = "voyages";
 updateAIContext();
