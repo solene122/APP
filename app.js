@@ -519,6 +519,7 @@ function startLongPress(type, index) {
   longPressTimer = setTimeout(function() {
     if (type === "programme") afficherMenuProgramme(index);
     else if (type === "seance") afficherMenuSeance(index);
+    else if (type === "sortie") menuSortie(index);
     else if (type === "voyage") menuVoyage(index);
     else if (type === "livre") menuLivre(index);
     else if (type.startsWith("citationlivre_")) {
@@ -1192,7 +1193,326 @@ function renderBiblioExercices(filtreMusc) {
 function renderCourse() {
   currentPage = "sport";
   updateAIContext();
-  renderStub("Course 🏃‍♀️", "Suivi de tes sorties course — bientôt !", "renderSport()");
+  const app = document.getElementById("app");
+  const sorties = getSorties();
+  const defis = getDefisCourse();
+  const points = getPointsCourse();
+  const niveau = getNiveauCourse(points);
+
+  app.innerHTML =
+    '<div class="header">' +
+      '<button onclick="renderSport()" style="background:rgba(255,255,255,0.15);border:none;color:white;padding:8px 16px;border-radius:20px;font-size:14px;cursor:pointer;margin-bottom:12px;">← Retour</button>' +
+      '<div class="name">Course 🏃‍♀️</div>' +
+    '</div>' +
+
+    '<div style="display:flex;gap:8px;padding:0 16px 8px;overflow-x:auto">' +
+      '<button onclick="renderCourse()" class="filtre-btn actif" style="white-space:nowrap">🏃 Accueil</button>' +
+      '<button onclick="renderSortiesCourse()" class="filtre-btn" style="white-space:nowrap">📊 Mes sorties</button>' +
+      '<button onclick="renderDefisCourse()" class="filtre-btn" style="white-space:nowrap">🏆 Défis</button>' +
+    '</div>' +
+
+    // Niveau et points
+    '<div class="card">' +
+      '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">' +
+        '<div>' +
+          '<div style="font-size:13px;opacity:0.6">Niveau ' + niveau.numero + '</div>' +
+          '<div style="font-size:18px;font-weight:700">' + niveau.titre + '</div>' +
+        '</div>' +
+        '<div style="text-align:center;background:rgba(124,106,247,0.2);border-radius:14px;padding:10px 16px">' +
+          '<div style="font-size:24px;font-weight:700">' + points + '</div>' +
+          '<div style="font-size:11px;opacity:0.6">points</div>' +
+        '</div>' +
+      '</div>' +
+      '<div style="background:rgba(255,255,255,0.15);border-radius:10px;height:8px">' +
+        '<div style="background:linear-gradient(135deg,#7c6af7,#f953c6);border-radius:10px;height:8px;width:' + niveau.progression + '%;transition:width 0.3s"></div>' +
+      '</div>' +
+      '<div style="font-size:12px;opacity:0.5;margin-top:4px">' + niveau.pointsRestants + ' points pour le niveau suivant</div>' +
+    '</div>' +
+
+    // Stats
+    '<div class="card">' +
+      '<div class="word-title"><i data-lucide="bar-chart-2"></i> Mes stats</div>' +
+      '<div class="summary-grid">' +
+        '<div class="summary-item"><div class="value">' + sorties.length + '</div><div class="label">Sorties</div></div>' +
+        '<div class="summary-item"><div class="value">' + getTotalKm() + 'km</div><div class="label">Distance totale</div></div>' +
+        '<div class="summary-item"><div class="value">' + defis.filter(function(d){ return d.fait; }).length + '</div><div class="label">Défis faits</div></div>' +
+        '<div class="summary-item"><div class="value">' + defis.filter(function(d){ return !d.fait; }).length + '</div><div class="label">Défis à faire</div></div>' +
+      '</div>' +
+    '</div>' +
+
+    // Bouton nouvelle sortie
+    '<div style="padding:0 16px">' +
+      '<button onclick="ajouterSortie()" style="width:100%;background:linear-gradient(135deg,#7c6af7,#f953c6);border:none;color:white;padding:16px;border-radius:16px;font-size:16px;font-weight:700;cursor:pointer;">🏃‍♀️ Enregistrer une sortie</button>' +
+    '</div>' +
+
+    // Défi du jour
+    '<div class="card">' +
+      '<div class="word-title"><i data-lucide="target"></i> Défi suggéré</div>' +
+      getDefiSuggere() +
+    '</div>' +
+
+    '<div style="height:20px"></div>' +
+    buildNav("sport");
+  lucide.createIcons();
+}
+
+// ============================================
+// DONNÉES COURSE
+// ============================================
+function getSorties() {
+  return JSON.parse(localStorage.getItem("sorties_course") || "[]");
+}
+
+function sauvegarderSorties(sorties) {
+  localStorage.setItem("sorties_course", JSON.stringify(sorties));
+}
+
+function getDefisCourse() {
+  const saved = localStorage.getItem("defis_course");
+  if (saved) return JSON.parse(saved);
+  const defauts = getDefisDefaut();
+  localStorage.setItem("defis_course", JSON.stringify(defauts));
+  return defauts;
+}
+
+function sauvegarderDefisCourse(defis) {
+  localStorage.setItem("defis_course", JSON.stringify(defis));
+}
+
+function getPointsCourse() {
+  return parseInt(localStorage.getItem("points_course") || "0");
+}
+
+function ajouterPointsCourse(pts) {
+  const total = getPointsCourse() + pts;
+  localStorage.setItem("points_course", total.toString());
+  return total;
+}
+
+function getTotalKm() {
+  return getSorties().reduce(function(t, s) { return t + (parseFloat(s.distance) || 0); }, 0).toFixed(1);
+}
+
+function getNiveauCourse(points) {
+  const niveaux = [
+    { numero: 1, titre: "Coureuse débutante", min: 0, max: 10 },
+    { numero: 2, titre: "Coureuse régulière", min: 10, max: 25 },
+    { numero: 3, titre: "Coureuse aventurière", min: 25, max: 50 },
+    { numero: 4, titre: "Coureuse intrépide", min: 50, max: 100 },
+    { numero: 5, titre: "Coureuse légendaire", min: 100, max: 999 }
+  ];
+  const niveau = niveaux.find(function(n) { return points >= n.min && points < n.max; }) || niveaux[4];
+  const progression = Math.min(((points - niveau.min) / (niveau.max - niveau.min) * 100), 100);
+  return {
+    numero: niveau.numero,
+    titre: niveau.titre,
+    progression: Math.round(progression),
+    pointsRestants: Math.max(niveau.max - points, 0)
+  };
+}
+
+function getDefisDefaut() {
+  return [
+    { id: 1, texte: "Courir sous la pluie ☔", points: 3, categorie: "Météo", fait: false, niveau: 1 },
+    { id: 2, texte: "Photographier 3 choses rouges pendant ta course 📸", points: 2, categorie: "Visuel", fait: false, niveau: 1 },
+    { id: 3, texte: "Courir cheveux détachés 💨", points: 1, categorie: "Style", fait: false, niveau: 1 },
+    { id: 4, texte: "Sourire à 5 inconnus pendant ta course 😊", points: 2, categorie: "Social", fait: false, niveau: 1 },
+    { id: 5, texte: "Courir au lever du soleil 🌅", points: 4, categorie: "Timing", fait: false, niveau: 2 },
+    { id: 6, texte: "Courir un nouveau chemin que tu n'as jamais pris 🗺️", points: 3, categorie: "Exploration", fait: false, niveau: 1 },
+    { id: 7, texte: "Faire 5 minutes de marche nordique pendant ta sortie 🥢", points: 2, categorie: "Technique", fait: false, niveau: 1 },
+    { id: 8, texte: "Courir en écoutant un podcast plutôt que de la musique 🎙️", points: 2, categorie: "Ambiance", fait: false, niveau: 1 },
+    { id: 9, texte: "Terminer ta course par 10 pompes 💪", points: 3, categorie: "Sport", fait: false, niveau: 2 },
+    { id: 10, texte: "Courir sous la neige ou par -5°C ❄️", points: 5, categorie: "Météo", fait: false, niveau: 3 },
+    { id: 11, texte: "Courir 30 minutes sans regarder ta montre ⌚", points: 3, categorie: "Mental", fait: false, niveau: 2 },
+    { id: 12, texte: "Ramasser un déchet pendant ta course ♻️", points: 2, categorie: "Éco", fait: false, niveau: 1 },
+  ];
+}
+
+function getDefiSuggere() {
+  const defis = getDefisCourse().filter(function(d) { return !d.fait; });
+  if (defis.length === 0) return '<div style="opacity:0.6;font-size:14px">Tous les défis sont complétés ! 🎉</div>';
+  const defi = defis[Math.floor(Math.random() * Math.min(defis.length, 3))];
+  return '<div style="margin-top:8px">' +
+    '<div style="font-size:15px;font-weight:600;margin-bottom:6px">' + defi.texte + '</div>' +
+    '<div style="display:flex;justify-content:space-between;align-items:center">' +
+      '<span style="font-size:12px;opacity:0.6">' + defi.categorie + ' · ' + defi.points + ' pts</span>' +
+      '<button onclick="validerDefi(' + defi.id + ')" style="background:linear-gradient(135deg,#7c6af7,#f953c6);border:none;color:white;padding:8px 16px;border-radius:12px;font-size:13px;cursor:pointer;">✅ Défi relevé !</button>' +
+    '</div>' +
+  '</div>';
+}
+
+function ajouterSortie() {
+  afficherInput("Distance (km)", "Ex: 5.2", "", function(distance) {
+    afficherInputOptional("Durée (min)", "Ex: 35", function(duree) {
+      afficherInputOptional("Notes sur la sortie", "Comment c'était ?", function(notes) {
+        const sorties = getSorties();
+        sorties.unshift({
+          distance: parseFloat(distance) || 0,
+          duree: parseInt(duree) || null,
+          notes: notes || null,
+          date: new Date().toLocaleDateString("fr-FR"),
+          dateISO: new Date().toISOString()
+        });
+        sauvegarderSorties(sorties);
+        showToast("🏃‍♀️ Sortie enregistrée !");
+        renderCourse();
+      });
+    });
+  });
+}
+
+function renderSortiesCourse() {
+  currentPage = "sport";
+  const app = document.getElementById("app");
+  const sorties = getSorties();
+
+  app.innerHTML =
+    '<div class="header">' +
+      '<button onclick="renderCourse()" style="background:rgba(255,255,255,0.15);border:none;color:white;padding:8px 16px;border-radius:20px;font-size:14px;cursor:pointer;margin-bottom:12px;">← Retour</button>' +
+      '<div class="name" style="font-size:26px">Mes sorties 📊</div>' +
+      '<div class="date">' + getTotalKm() + ' km au total</div>' +
+    '</div>' +
+
+    '<div style="padding:0 16px 8px">' +
+      '<button onclick="ajouterSortie()" style="background:linear-gradient(135deg,#7c6af7,#f953c6);border:none;color:white;padding:12px 20px;border-radius:14px;font-size:14px;font-weight:600;cursor:pointer;">+ Nouvelle sortie</button>' +
+    '</div>' +
+
+    (sorties.length === 0 ?
+      '<div class="card" style="text-align:center;padding:40px;opacity:0.6">Aucune sortie enregistrée 🏃‍♀️</div>' :
+      '<div class="card">' +
+        sorties.map(function(s, i) {
+          return '<div style="display:flex;align-items:center;gap:12px;padding:10px 0;border-bottom:1px solid rgba(255,255,255,0.08);cursor:pointer;user-select:none" ' +
+            'oncontextmenu="event.preventDefault();menuSortie(' + i + ')" ' +
+            'ontouchstart="startLongPress(\'sortie\',' + i + ')" ' +
+            'ontouchend="cancelLongPress()" ' +
+            'ontouchmove="cancelLongPress()">' +
+            '<div style="font-size:32px">🏃‍♀️</div>' +
+            '<div style="flex:1">' +
+              '<div style="font-size:15px;font-weight:700">' + (s.distance || 0) + ' km</div>' +
+              '<div style="font-size:12px;opacity:0.6">' + s.date + (s.duree ? ' · ' + s.duree + ' min' : '') + '</div>' +
+              (s.notes ? '<div style="font-size:12px;opacity:0.5;margin-top:2px">' + s.notes + '</div>' : '') +
+            '</div>' +
+            (s.duree && s.distance ? '<div style="font-size:12px;opacity:0.6">' + (s.duree/s.distance).toFixed(1) + ' min/km</div>' : '') +
+          '</div>';
+        }).join("") +
+      '</div>'
+    ) +
+
+    '<div style="height:20px"></div>' +
+    buildNav("sport");
+  lucide.createIcons();
+}
+
+function menuSortie(index) {
+  const sorties = getSorties();
+  afficherMenuContextuel("Sortie du " + sorties[index].date, [
+    { label: "🗑️ Supprimer", action: function() {
+      sorties.splice(index, 1);
+      sauvegarderSorties(sorties);
+      showToast("🗑️ Sortie supprimée");
+      renderSortiesCourse();
+    }, danger: true }
+  ]);
+}
+
+function renderDefisCourse() {
+  currentPage = "sport";
+  const app = document.getElementById("app");
+  const defis = getDefisCourse();
+  const points = getPointsCourse();
+  const niveau = getNiveauCourse(points);
+  const categories = ["tous", "Météo", "Visuel", "Style", "Social", "Timing", "Exploration", "Mental", "Sport", "Éco", "Ambiance", "Technique"];
+
+  app.innerHTML =
+    '<div class="header">' +
+      '<button onclick="renderCourse()" style="background:rgba(255,255,255,0.15);border:none;color:white;padding:8px 16px;border-radius:20px;font-size:14px;cursor:pointer;margin-bottom:12px;">← Retour</button>' +
+      '<div style="display:flex;justify-content:space-between;align-items:center">' +
+        '<div class="name" style="font-size:26px">Défis 🏆</div>' +
+        '<div style="text-align:center;background:rgba(124,106,247,0.2);border-radius:12px;padding:8px 14px">' +
+          '<div style="font-size:20px;font-weight:700">' + points + ' pts</div>' +
+        '</div>' +
+      '</div>' +
+      '<div class="date">Niveau ' + niveau.numero + ' — ' + niveau.titre + '</div>' +
+    '</div>' +
+
+    '<div style="display:flex;gap:8px;padding:0 16px 8px;overflow-x:auto">' +
+      '<button onclick="renderDefisCourse()" class="filtre-btn actif" style="white-space:nowrap">Tous</button>' +
+      '<button onclick="ajouterDefiPerso()" class="filtre-btn" style="white-space:nowrap">+ Mon défi</button>' +
+      '<button onclick="genererDefiIA()" class="filtre-btn" style="white-space:nowrap">✨ Défi IA</button>' +
+    '</div>' +
+
+    '<div class="card">' +
+      defis.map(function(d, i) {
+        return '<div style="display:flex;align-items:center;gap:12px;padding:10px 0;border-bottom:1px solid rgba(255,255,255,0.08)">' +
+          '<button onclick="validerDefi(' + d.id + ')" style="width:28px;height:28px;border-radius:50%;border:2px solid ' + (d.fait ? "#7c6af7" : "rgba(255,255,255,0.3)") + ';background:' + (d.fait ? "linear-gradient(135deg,#7c6af7,#f953c6)" : "none") + ';cursor:pointer;flex-shrink:0;display:flex;align-items:center;justify-content:center;color:white;font-size:14px">' + (d.fait ? "✓" : "") + '</button>' +
+          '<div style="flex:1">' +
+            '<div style="font-size:14px;' + (d.fait ? "opacity:0.5;text-decoration:line-through" : "") + '">' + d.texte + '</div>' +
+            '<div style="font-size:11px;opacity:0.5">' + d.categorie + '</div>' +
+          '</div>' +
+          '<div style="font-size:13px;font-weight:700;color:' + (d.fait ? "rgba(124,106,247,0.6)" : "rgba(255,200,0,0.9)") + '">' + d.points + ' pts</div>' +
+        '</div>';
+      }).join("") +
+    '</div>' +
+
+    '<div style="height:20px"></div>' +
+    buildNav("sport");
+  lucide.createIcons();
+}
+
+function validerDefi(id) {
+  const defis = getDefisCourse();
+  const defi = defis.find(function(d) { return d.id === id; });
+  if (!defi || defi.fait) return;
+  defi.fait = true;
+  sauvegarderDefisCourse(defis);
+  const total = ajouterPointsCourse(defi.points);
+  const niveau = getNiveauCourse(total);
+  showToast("🎉 +" + defi.points + " pts ! Total : " + total + " pts — " + niveau.titre);
+  renderCourse();
+}
+
+function ajouterDefiPerso() {
+  afficherInput("Ton défi personnalisé", "Ex: Courir en chantant...", "", function(texte) {
+    afficherMenuContextuel("Points pour ce défi", [
+      { label: "⭐ 1 point — Facile", action: function() { _sauvegarderDefi(texte, 1, "Perso"); } },
+      { label: "⭐⭐ 2 points — Moyen", action: function() { _sauvegarderDefi(texte, 2, "Perso"); } },
+      { label: "⭐⭐⭐ 3 points — Difficile", action: function() { _sauvegarderDefi(texte, 3, "Perso"); } },
+      { label: "⭐⭐⭐⭐⭐ 5 points — Épique", action: function() { _sauvegarderDefi(texte, 5, "Perso"); } },
+    ]);
+  });
+}
+
+function _sauvegarderDefi(texte, points, categorie) {
+  const defis = getDefisCourse();
+  const newId = Math.max.apply(null, defis.map(function(d) { return d.id; })) + 1;
+  defis.push({ id: newId, texte: texte, points: points, categorie: categorie, fait: false, niveau: 1 });
+  sauvegarderDefisCourse(defis);
+  showToast("🏆 Défi ajouté !");
+  renderDefisCourse();
+}
+
+async function genererDefiIA() {
+  showToast("✨ L'IA génère un défi...");
+  try {
+    const res = await fetch("https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=" + KEYS.gemini, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        contents: [{ parts: [{ text: "Génère un défi de course à pied original et fun pour Solène. Le défi doit être amusant, original, pas dangereux. Réponds UNIQUEMENT avec un JSON : {\"texte\":\"le défi avec emoji\",\"points\":nombre entre 1 et 5,\"categorie\":\"catégorie courte\"}. Inspire-toi de défis comme : photographier quelque chose, courir dans une condition météo, faire quelque chose de rigolo pendant la course." }] }]
+      })
+    });
+    const data = await res.json();
+    const raw = data.candidates[0].content.parts[0].text.replace(/```json|```/g, "").trim();
+    const defi = JSON.parse(raw);
+    afficherMenuContextuel("✨ " + defi.texte, [
+      { label: "➕ Ajouter ce défi", action: function() {
+        _sauvegarderDefi(defi.texte, defi.points, defi.categorie);
+      }},
+      { label: "🔄 Autre défi", action: function() { genererDefiIA(); } }
+    ]);
+  } catch(e) {
+    showToast("❌ Erreur, réessaie !");
+  }
 }
 
 // ============================================
