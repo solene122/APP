@@ -206,6 +206,24 @@ async function lireDonneesSante() {
   }
 }
 
+function importerDonneesSante() {
+  afficherInput("Colle tes données Santé", "Ex: {\"pas\":\"8547\",\"minutes\":\"32\"}", "", function(json) {
+    try {
+      const donnees = JSON.parse(json);
+      const sante = {
+        pas: parseInt(donnees.pas) || 0,
+        minutes: parseInt(donnees.minutes) || 0,
+        maj: new Date().toLocaleTimeString("fr-FR")
+      };
+      localStorage.setItem("sante_data", JSON.stringify(sante));
+      showToast("❤️ Données Santé importées !");
+      renderSport();
+    } catch(e) {
+      showToast("❌ Format invalide — colle le JSON du fichier sante");
+    }
+  });
+}
+
 function getSanteDonnees() {
   const saved = localStorage.getItem("sante_data");
   return saved ? JSON.parse(saved) : { pas: 0, minutes: 0 };
