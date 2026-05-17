@@ -519,6 +519,11 @@ function startLongPress(type, index) {
   longPressTimer = setTimeout(function() {
     if (type === "programme") afficherMenuProgramme(index);
     else if (type === "seance") afficherMenuSeance(index);
+    else if (type === "livre") menuLivre(index);
+    else if (type.startsWith("citationlivre_")) {
+    var livreIndex = parseInt(type.replace("citationlivre_", ""));
+    menuCitationLivre(livreIndex, index);
+}
     else if (type === "journal") menuEntreeJournal(index);
     else if (type === "projet") menuProjet(index);
     else if (type === "tacherapide") menuTacheRapide(index);
@@ -3132,10 +3137,418 @@ currentPage = "voyages";
 updateAIContext();
 renderStub("Voyages 🌍", "Planifie tes aventures — bientôt !", "renderMenu()");
 }
+
 function renderLectures() {
-currentPage = "lectures";
-updateAIContext();
-renderStub("Lectures 📚", "Tes livres et citations — bientôt !", "renderMenu()");
+  currentPage = "lectures";
+  updateAIContext();
+  const app = document.getElementById("app");
+  const livres = getLivres();
+  const enCours = livres.filter(function(l) { return l.statut === "en cours"; });
+  const aLire = livres.filter(function(l) { return l.statut === "à lire"; });
+  const termines = livres.filter(function(l) { return l.statut === "terminé"; });
+
+  app.innerHTML =
+    '<div class="header">' +
+      '<button onclick="renderMenu()" style="background:rgba(255,255,255,0.15);border:none;color:white;padding:8px 16px;border-radius:20px;font-size:14px;cursor:pointer;margin-bottom:12px;">← Retour</button>' +
+      '<div style="display:flex;justify-content:space-between;align-items:center">' +
+        '<div class="name" style="font-size:28px">Lectures 📚</div>' +
+        '<button onclick="ajouterLivre()" style="background:linear-gradient(135deg,#7c6af7,#f953c6);border:none;color:white;padding:10px 16px;border-radius:14px;font-size:13px;font-weight:600;cursor:pointer;">+ Livre</button>' +
+      '</div>' +
+    '</div>' +
+
+    '<div style="display:flex;gap:8px;padding:0 16px 8px;overflow-x:auto">' +
+      '<button onclick="renderLivres(\'en cours\')" class="filtre-btn actif" style="white-space:nowrap">📖 En cours (' + enCours.length + ')</button>' +
+      '<button onclick="renderLivres(\'à lire\')" class="filtre-btn" style="white-space:nowrap">📋 À lire (' + aLire.length + ')</button>' +
+      '<button onclick="renderLivres(\'terminé\')" class="filtre-btn" style="white-space:nowrap">✅ Terminés (' + termines.length + ')</button>' +
+      '<button onclick="renderCitations()" class="filtre-btn" style="white-space:nowrap">💬 Citations</button>' +
+    '</div>' +
+
+    '<div class="card">' +
+      '<div class="summary-grid">' +
+        '<div class="summary-item"><div class="value">' + termines.length + '</div><div class="label">Lus</div></div>' +
+        '<div class="summary-item"><div class="value">' + enCours.length + '</div><div class="label">En cours</div></div>' +
+        '<div class="summary-item"><div class="value">' + aLire.length + '</div><div class="label">À lire</div></div>' +
+        '<div class="summary-item"><div class="value">' + getCitations().length + '</div><div class="label">Citations</div></div>' +
+      '</div>' +
+    '</div>' +
+
+    // Livres en cours
+    (enCours.length > 0 ?
+      '<div class="card">' +
+        '<div class="word-title"><i data-lucide="book-open"></i> En cours</div>' +
+        enCours.map(function(l) {
+          const index = livres.indexOf(l);
+          return livreMiniCard(l, index);
+        }).join("") +
+      '</div>' : ""
+    ) +
+
+    // Suggestions IA
+    '<div class="card" style="cursor:pointer" onclick="suggestionLivreIA()">' +
+      '<div style="display:flex;align-items:center;gap:12px">' +
+        '<div style="font-size:32px">✨</div>' +
+        '<div>' +
+          '<div style="font-size:15px;font-weight:600">Suggestion de lecture IA</div>' +
+          '<div style="font-size:12px;opacity:0.6">Basée sur tes goûts →</div>' +
+        '</div>' +
+      '</div>' +
+    '</div>' +
+
+    '<div style="height:20px"></div>' +
+    buildNav("plus");
+  lucide.createIcons();
+}
+
+function getLivres() {
+  return JSON.parse(localStorage.getItem("livres") || "[]");
+}
+
+function sauvegarderLivres(livres) {
+  localStorage.setItem("livres", JSON.stringify(livres));
+}
+
+function livreMiniCard(livre, index) {
+  return '<div style="display:flex;gap:12px;align-items:center;padding:10px 0;border-bottom:1px solid rgba(255,255,255,0.08);cursor:pointer;user-select:none" ' +
+    'onclick="renderDetailLivre(' + index + ')" ' +
+    'oncontextmenu="event.preventDefault();menuLivre(' + index + ')" ' +
+    'ontouchstart="startLongPress(\'livre\',' + index + ')" ' +
+    'ontouchend="cancelLongPress()" ' +
+    'ontouchmove="cancelLongPress()">' +
+    '<div style="width:40px;height:56px;background:linear-gradient(135deg,#7c6af7,#f953c6);border-radius:6px;display:flex;align-items:center;justify-content:center;font-size:20px;flex-shrink:0">📖</div>' +
+    '<div style="flex:1">' +
+      '<div style="font-size:14px;font-weight:700">' + livre.titre + '</div>' +
+      '<div style="font-size:12px;opacity:0.6">' + (livre.auteur || "Auteur inconnu") + '</div>' +
+      (livre.page ? '<div style="font-size:11px;opacity:0.5">Page ' + livre.page + (livre.pages ? '/' + livre.pages : '') + '</div>' : '') +
+    '</div>' +
+  '</div>';
+}
+
+function ajouterLivre() {
+  afficherInput("Titre du livre", "Ex: Le Petit Prince...", "", function(titre) {
+    afficherInput("Auteur", "Ex: Antoine de Saint-Exupéry", "", function(auteur) {
+      afficherInputOptional("Nombre de pages (optionnel)", "Ex: 320", function(pages) {
+        afficherMenuContextuel("Statut du livre", [
+          { label: "📖 En cours de lecture", action: function() { _sauvegarderLivre(titre, auteur, pages, "en cours"); } },
+          { label: "📋 Dans ma liste à lire", action: function() { _sauvegarderLivre(titre, auteur, pages, "à lire"); } },
+          { label: "✅ Déjà lu", action: function() { _sauvegarderLivre(titre, auteur, pages, "terminé"); } }
+        ]);
+      });
+    });
+  });
+}
+
+function _sauvegarderLivre(titre, auteur, pages, statut) {
+  const livres = getLivres();
+  livres.unshift({
+    titre: titre,
+    auteur: auteur || null,
+    pages: pages ? parseInt(pages) : null,
+    page: null,
+    statut: statut,
+    note: null,
+    avis: null,
+    citations: [],
+    date: new Date().toLocaleDateString("fr-FR")
+  });
+  sauvegarderLivres(livres);
+  showToast("📚 \"" + titre + "\" ajouté !");
+  renderLectures();
+}
+
+function renderLivres(filtre) {
+  currentPage = "lectures";
+  const app = document.getElementById("app");
+  const livres = getLivres();
+  const liste = livres.filter(function(l) { return l.statut === filtre; });
+
+  app.innerHTML =
+    '<div class="header">' +
+      '<button onclick="renderLectures()" style="background:rgba(255,255,255,0.15);border:none;color:white;padding:8px 16px;border-radius:20px;font-size:14px;cursor:pointer;margin-bottom:12px;">← Retour</button>' +
+      '<div style="display:flex;justify-content:space-between;align-items:center">' +
+        '<div class="name" style="font-size:26px">' + (filtre === "en cours" ? "📖 En cours" : filtre === "à lire" ? "📋 À lire" : "✅ Terminés") + '</div>' +
+        '<button onclick="ajouterLivre()" style="background:rgba(255,255,255,0.15);border:none;color:white;padding:8px 14px;border-radius:12px;font-size:13px;cursor:pointer;">+ Livre</button>' +
+      '</div>' +
+    '</div>' +
+
+    (liste.length === 0 ?
+      '<div class="card" style="text-align:center;padding:40px;opacity:0.6">Aucun livre ici 📚</div>' :
+      '<div class="card">' +
+        liste.map(function(l) {
+          return livreMiniCard(l, livres.indexOf(l));
+        }).join("") +
+      '</div>'
+    ) +
+
+    '<div style="height:20px"></div>' +
+    buildNav("plus");
+  lucide.createIcons();
+}
+
+function renderDetailLivre(index) {
+  currentPage = "lectures";
+  const app = document.getElementById("app");
+  const livres = getLivres();
+  const livre = livres[index];
+  if (!livre) return;
+  const citations = livre.citations || [];
+
+  app.innerHTML =
+    '<div class="header">' +
+      '<button onclick="renderLectures()" style="background:rgba(255,255,255,0.15);border:none;color:white;padding:8px 16px;border-radius:20px;font-size:14px;cursor:pointer;margin-bottom:12px;">← Retour</button>' +
+      '<div class="name" style="font-size:22px">' + livre.titre + '</div>' +
+      '<div class="date">' + (livre.auteur || "") + '</div>' +
+    '</div>' +
+
+    '<div style="display:flex;gap:8px;padding:0 16px 8px">' +
+      ['à lire', 'en cours', 'terminé'].map(function(s) {
+        return '<button onclick="changerStatutLivre(' + index + ',\'' + s + '\')" class="filtre-btn ' + (livre.statut === s ? "actif" : "") + '">' + s + '</button>';
+      }).join("") +
+    '</div>' +
+
+    '<div class="card">' +
+      '<div class="word-title"><i data-lucide="bookmark"></i> Ma progression</div>' +
+      (livre.statut === "en cours" ?
+        '<div style="display:flex;gap:10px;align-items:center;margin-top:8px">' +
+          '<input id="page-input" type="number" placeholder="Page actuelle" value="' + (livre.page || "") + '" style="flex:1;background:rgba(255,255,255,0.1);border:1px solid rgba(255,255,255,0.2);border-radius:10px;padding:10px;color:white;font-size:14px;outline:none" />' +
+          '<button onclick="mettreAJourPage(' + index + ')" style="background:rgba(124,106,247,0.4);border:none;color:white;padding:10px 16px;border-radius:10px;font-size:13px;cursor:pointer;">Sauver</button>' +
+        '</div>' +
+        (livre.page && livre.pages ? '<div style="margin-top:10px"><div style="background:rgba(255,255,255,0.15);border-radius:10px;height:6px"><div style="background:linear-gradient(135deg,#7c6af7,#f953c6);border-radius:10px;height:6px;width:' + Math.round(livre.page/livre.pages*100) + '%"></div></div><div style="font-size:12px;opacity:0.5;margin-top:4px">' + Math.round(livre.page/livre.pages*100) + '% lu</div></div>' : "") : ""
+      ) +
+      (livre.statut === "terminé" ?
+        '<div style="margin-top:8px">' +
+          '<div style="font-size:13px;opacity:0.6;margin-bottom:8px">Ma note</div>' +
+          '<div style="display:flex;gap:4px">' +
+            [1,2,3,4,5].map(function(n) {
+              return '<button onclick="noterLivre(' + index + ',' + n + ')" style="font-size:24px;background:none;border:none;cursor:pointer;opacity:' + (livre.note && n <= livre.note ? "1" : "0.3") + '">⭐</button>';
+            }).join("") +
+          '</div>' +
+          '<textarea id="avis-input" placeholder="Mon avis..." style="width:100%;background:rgba(255,255,255,0.08);border:1px solid rgba(255,255,255,0.15);border-radius:12px;padding:12px;color:white;font-size:14px;outline:none;font-family:var(--font);min-height:80px;resize:none;margin-top:8px">' + (livre.avis || "") + '</textarea>' +
+          '<button onclick="sauvegarderAvis(' + index + ')" style="width:100%;background:rgba(255,255,255,0.1);border:none;color:white;padding:10px;border-radius:12px;font-size:13px;cursor:pointer;margin-top:8px;">💾 Sauver mon avis</button>' +
+        '</div>' : ""
+      ) +
+    '</div>' +
+
+    '<div class="card">' +
+      '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">' +
+        '<div class="word-title" style="margin:0"><i data-lucide="quote"></i> Citations (' + citations.length + ')</div>' +
+        '<button onclick="ajouterCitationLivre(' + index + ')" style="background:rgba(255,255,255,0.15);border:none;color:white;padding:6px 12px;border-radius:10px;font-size:12px;cursor:pointer;">+ Citation</button>' +
+      '</div>' +
+      (citations.length === 0 ?
+        '<div style="opacity:0.6;font-size:14px">Aucune citation — note tes passages préférés !</div>' :
+        citations.map(function(c, ci) {
+          return '<div style="padding:10px 0;border-bottom:1px solid rgba(255,255,255,0.08);cursor:pointer;user-select:none" ' +
+            'oncontextmenu="event.preventDefault();menuCitationLivre(' + index + ',' + ci + ')" ' +
+            'ontouchstart="startLongPress(\'citationlivre_' + index + '\',' + ci + ')" ' +
+            'ontouchend="cancelLongPress()" ' +
+            'ontouchmove="cancelLongPress()">' +
+            '<div style="font-size:14px;font-style:italic;line-height:1.5;opacity:0.9">"' + c.texte + '"</div>' +
+            (c.page ? '<div style="font-size:11px;opacity:0.5;margin-top:4px">Page ' + c.page + '</div>' : '') +
+            (c.favori ? '<div style="font-size:11px;margin-top:2px">⭐ Favori</div>' : '') +
+          '</div>';
+        }).join("")
+      ) +
+    '</div>' +
+
+    '<div style="height:20px"></div>' +
+    buildNav("plus");
+  lucide.createIcons();
+}
+
+function mettreAJourPage(index) {
+  const input = document.getElementById("page-input");
+  if (!input) return;
+  const livres = getLivres();
+  livres[index].page = parseInt(input.value) || null;
+  sauvegarderLivres(livres);
+  showToast("📖 Page mise à jour !");
+  renderDetailLivre(index);
+}
+
+function changerStatutLivre(index, statut) {
+  const livres = getLivres();
+  livres[index].statut = statut;
+  sauvegarderLivres(livres);
+  renderDetailLivre(index);
+}
+
+function noterLivre(index, note) {
+  const livres = getLivres();
+  livres[index].note = note;
+  sauvegarderLivres(livres);
+  renderDetailLivre(index);
+}
+
+function sauvegarderAvis(index) {
+  const input = document.getElementById("avis-input");
+  if (!input) return;
+  const livres = getLivres();
+  livres[index].avis = input.value.trim();
+  sauvegarderLivres(livres);
+  showToast("💾 Avis sauvegardé !");
+}
+
+function ajouterCitationLivre(index) {
+  afficherInput("Citation", "Copie le passage qui t'a marquée...", "", function(texte) {
+    afficherInputOptional("Page (optionnel)", "Ex: 142", function(page) {
+      const livres = getLivres();
+      if (!livres[index].citations) livres[index].citations = [];
+      livres[index].citations.unshift({ texte: texte, page: page || null, favori: false });
+      sauvegarderLivres(livres);
+      showToast("💬 Citation ajoutée !");
+      renderDetailLivre(index);
+    });
+  });
+}
+
+function menuCitationLivre(livreIndex, citIndex) {
+  const livres = getLivres();
+  const citation = livres[livreIndex].citations[citIndex];
+  afficherMenuContextuel("Citation", [
+    { label: citation.favori ? "☆ Retirer des favoris" : "⭐ Ajouter aux favoris", action: function() {
+      livres[livreIndex].citations[citIndex].favori = !citation.favori;
+      sauvegarderLivres(livres);
+      renderDetailLivre(livreIndex);
+    }},
+    { label: "🗑️ Supprimer", action: function() {
+      livres[livreIndex].citations.splice(citIndex, 1);
+      sauvegarderLivres(livres);
+      renderDetailLivre(livreIndex);
+    }, danger: true }
+  ]);
+}
+
+function menuLivre(index) {
+  const livres = getLivres();
+  const livre = livres[index];
+  afficherMenuContextuel(livre.titre, [
+    { label: "📖 Voir le détail", action: function() { renderDetailLivre(index); } },
+    { label: "✏️ Modifier le titre", action: function() {
+      afficherInput("Nouveau titre", "", livre.titre, function(nouveau) {
+        livres[index].titre = nouveau;
+        sauvegarderLivres(livres);
+        renderLectures();
+      });
+    }},
+    { label: "🗑️ Supprimer", action: function() {
+      livres.splice(index, 1);
+      sauvegarderLivres(livres);
+      showToast("🗑️ Livre supprimé");
+      renderLectures();
+    }, danger: true }
+  ]);
+}
+
+function renderCitations() {
+  currentPage = "lectures";
+  const app = document.getElementById("app");
+  const livres = getLivres();
+  var toutes = [];
+  livres.forEach(function(livre, li) {
+    (livre.citations || []).forEach(function(c, ci) {
+      toutes.push({ texte: c.texte, page: c.page, favori: c.favori, livre: livre.titre, auteur: livre.auteur, livreIndex: li, citIndex: ci });
+    });
+  });
+  const favoris = toutes.filter(function(c) { return c.favori; });
+
+  app.innerHTML =
+    '<div class="header">' +
+      '<button onclick="renderLectures()" style="background:rgba(255,255,255,0.15);border:none;color:white;padding:8px 16px;border-radius:20px;font-size:14px;cursor:pointer;margin-bottom:12px;">← Retour</button>' +
+      '<div class="name" style="font-size:26px">Citations 💬</div>' +
+      '<div class="date">' + toutes.length + ' citations · ' + favoris.length + ' favoris</div>' +
+    '</div>' +
+
+    '<div style="display:flex;gap:8px;padding:0 16px 8px">' +
+      '<button onclick="renderCitations()" class="filtre-btn actif">Toutes</button>' +
+      '<button onclick="renderCitationsFavoris()" class="filtre-btn">⭐ Favoris</button>' +
+    '</div>' +
+
+    (toutes.length === 0 ?
+      '<div class="card" style="text-align:center;padding:40px;opacity:0.6">Aucune citation — ajoutes-en depuis tes livres ! 💬</div>' :
+      toutes.map(function(c) {
+        return '<div class="card" style="cursor:pointer;user-select:none" ' +
+          'onclick="renderDetailLivre(' + c.livreIndex + ')">' +
+          '<div style="font-size:15px;font-style:italic;line-height:1.6;margin-bottom:8px">"' + c.texte + '"</div>' +
+          '<div style="display:flex;justify-content:space-between;align-items:center">' +
+            '<div style="font-size:12px;opacity:0.6">— ' + c.livre + (c.auteur ? ', ' + c.auteur : '') + (c.page ? ' · p.' + c.page : '') + '</div>' +
+            (c.favori ? '<span style="font-size:14px">⭐</span>' : '') +
+          '</div>' +
+        '</div>';
+      }).join("")
+    ) +
+
+    '<div style="height:20px"></div>' +
+    buildNav("plus");
+  lucide.createIcons();
+}
+
+function renderCitationsFavoris() {
+  currentPage = "lectures";
+  const app = document.getElementById("app");
+  const livres = getLivres();
+  var favoris = [];
+  livres.forEach(function(livre, li) {
+    (livre.citations || []).filter(function(c) { return c.favori; }).forEach(function(c, ci) {
+      favoris.push({ texte: c.texte, livre: livre.titre, auteur: livre.auteur, page: c.page, livreIndex: li });
+    });
+  });
+
+  app.innerHTML =
+    '<div class="header">' +
+      '<button onclick="renderCitations()" style="background:rgba(255,255,255,0.15);border:none;color:white;padding:8px 16px;border-radius:20px;font-size:14px;cursor:pointer;margin-bottom:12px;">← Retour</button>' +
+      '<div class="name" style="font-size:26px">⭐ Citations favoris</div>' +
+    '</div>' +
+    (favoris.length === 0 ?
+      '<div class="card" style="text-align:center;padding:40px;opacity:0.6">Aucun favori pour l\'instant ⭐</div>' :
+      favoris.map(function(c) {
+        return '<div class="card" style="cursor:pointer" onclick="renderDetailLivre(' + c.livreIndex + ')">' +
+          '<div style="font-size:15px;font-style:italic;line-height:1.6;margin-bottom:8px">"' + c.texte + '"</div>' +
+          '<div style="font-size:12px;opacity:0.6">— ' + c.livre + (c.auteur ? ', ' + c.auteur : '') + '</div>' +
+        '</div>';
+      }).join("")
+    ) +
+    '<div style="height:20px"></div>' +
+    buildNav("plus");
+  lucide.createIcons();
+}
+
+async function suggestionLivreIA() {
+  const livres = getLivres();
+  const termines = livres.filter(function(l) { return l.statut === "terminé"; }).slice(0, 5);
+  showToast("✨ L'IA cherche une suggestion...");
+  try {
+    const contexte = termines.length > 0 ?
+      "Livres déjà lus : " + termines.map(function(l) { return l.titre + (l.auteur ? " de " + l.auteur : ""); }).join(", ") :
+      "Aucun livre lu pour l'instant";
+    const res = await fetch("https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=" + KEYS.gemini, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        contents: [{ parts: [{ text: "Tu es un conseiller littéraire pour Solène. " + contexte + ". Suggère UN livre avec titre, auteur et une courte raison en 2 phrases max. Réponds en français." }] }]
+      })
+    });
+    const data = await res.json();
+    const suggestion = data.candidates[0].content.parts[0].text.trim();
+    afficherMenuContextuel("✨ Suggestion IA", [
+      { label: "📋 Ajouter à ma liste", action: function() {
+        afficherInput("Titre du livre suggéré", "", "", function(titre) {
+          _sauvegarderLivre(titre, "", null, "à lire");
+        });
+      }},
+      { label: "🔄 Autre suggestion", action: function() { suggestionLivreIA(); } }
+    ]);
+    setTimeout(function() {
+      const panel = document.querySelector("#ctx_action_0")?.closest("div[style*='fixed']");
+      if (panel) {
+        const div = document.createElement("div");
+        div.style.cssText = "font-size:14px;line-height:1.6;padding:12px 0;opacity:0.9;color:white";
+        div.textContent = suggestion;
+        const firstBtn = panel.querySelector("button");
+        if (firstBtn) panel.insertBefore(div, firstBtn);
+      }
+    }, 100);
+  } catch(e) {
+    showToast("❌ Erreur, réessaie !");
+  }
 }
 
 function renderProjets() {
