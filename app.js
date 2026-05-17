@@ -519,6 +519,7 @@ function startLongPress(type, index) {
   longPressTimer = setTimeout(function() {
     if (type === "programme") afficherMenuProgramme(index);
     else if (type === "seance") afficherMenuSeance(index);
+    else if (type === "voyage") menuVoyage(index);
     else if (type === "livre") menuLivre(index);
     else if (type.startsWith("citationlivre_")) {
     var livreIndex = parseInt(type.replace("citationlivre_", ""));
@@ -3133,9 +3134,333 @@ function renderCalculMental() {
 }
 
 function renderVoyages() {
-currentPage = "voyages";
-updateAIContext();
-renderStub("Voyages 🌍", "Planifie tes aventures — bientôt !", "renderMenu()");
+  currentPage = "voyages";
+  updateAIContext();
+  const app = document.getElementById("app");
+  const voyages = getVoyages();
+  const enCours = voyages.filter(function(v) { return v.statut === "en cours"; });
+  const planifies = voyages.filter(function(v) { return v.statut === "planifié"; });
+  const passes = voyages.filter(function(v) { return v.statut === "passé"; });
+
+  app.innerHTML =
+    '<div class="header">' +
+      '<button onclick="renderMenu()" style="background:rgba(255,255,255,0.15);border:none;color:white;padding:8px 16px;border-radius:20px;font-size:14px;cursor:pointer;margin-bottom:12px;">← Retour</button>' +
+      '<div style="display:flex;justify-content:space-between;align-items:center">' +
+        '<div class="name" style="font-size:28px">Voyages 🌍</div>' +
+        '<button onclick="ajouterVoyage()" style="background:linear-gradient(135deg,#7c6af7,#f953c6);border:none;color:white;padding:10px 16px;border-radius:14px;font-size:13px;font-weight:600;cursor:pointer;">+ Voyage</button>' +
+      '</div>' +
+    '</div>' +
+
+    '<div style="display:flex;gap:8px;padding:0 16px 8px;overflow-x:auto">' +
+      '<button onclick="renderVoyages()" class="filtre-btn actif" style="white-space:nowrap">🌍 Tous</button>' +
+      '<button onclick="renderListeVoyages(\'planifié\')" class="filtre-btn" style="white-space:nowrap">📅 Planifiés (' + planifies.length + ')</button>' +
+      '<button onclick="renderListeVoyages(\'passé\')" class="filtre-btn" style="white-space:nowrap">✅ Passés (' + passes.length + ')</button>' +
+      '<button onclick="suggestionVoyageIA()" class="filtre-btn" style="white-space:nowrap">✨ Idée IA</button>' +
+    '</div>' +
+
+    '<div class="card">' +
+      '<div class="summary-grid">' +
+        '<div class="summary-item"><div class="value">' + passes.length + '</div><div class="label">Voyages faits</div></div>' +
+        '<div class="summary-item"><div class="value">' + planifies.length + '</div><div class="label">Planifiés</div></div>' +
+        '<div class="summary-item"><div class="value">' + voyages.length + '</div><div class="label">Total</div></div>' +
+        '<div class="summary-item"><div class="value">' + getDestinationsUniques() + '</div><div class="label">Destinations</div></div>' +
+      '</div>' +
+    '</div>' +
+
+    (planifies.length > 0 ?
+      '<div class="card">' +
+        '<div class="word-title"><i data-lucide="map-pin"></i> Prochains voyages</div>' +
+        planifies.slice(0, 3).map(function(v) {
+          return voyageMiniCard(v, voyages.indexOf(v));
+        }).join("") +
+      '</div>' : ""
+    ) +
+
+    '<div class="card" style="cursor:pointer" onclick="suggestionVoyageIA()">' +
+      '<div style="display:flex;align-items:center;gap:12px">' +
+        '<div style="font-size:32px">✈️</div>' +
+        '<div>' +
+          '<div style="font-size:15px;font-weight:600">Suggestion de destination IA</div>' +
+          '<div style="font-size:12px;opacity:0.6">Basée sur tes envies →</div>' +
+        '</div>' +
+      '</div>' +
+    '</div>' +
+
+    '<div style="height:20px"></div>' +
+    buildNav("plus");
+  lucide.createIcons();
+}
+
+function getVoyages() {
+  return JSON.parse(localStorage.getItem("voyages") || "[]");
+}
+
+function sauvegarderVoyages(voyages) {
+  localStorage.setItem("voyages", JSON.stringify(voyages));
+}
+
+function getDestinationsUniques() {
+  const voyages = getVoyages();
+  const destinations = voyages.map(function(v) { return v.destination; });
+  return new Set(destinations).size;
+}
+
+function voyageMiniCard(voyage, index) {
+  return '<div style="display:flex;gap:12px;align-items:center;padding:10px 0;border-bottom:1px solid rgba(255,255,255,0.08);cursor:pointer;user-select:none" ' +
+    'onclick="renderDetailVoyage(' + index + ')" ' +
+    'oncontextmenu="event.preventDefault();menuVoyage(' + index + ')" ' +
+    'ontouchstart="startLongPress(\'voyage\',' + index + ')" ' +
+    'ontouchend="cancelLongPress()" ' +
+    'ontouchmove="cancelLongPress()">' +
+    '<div style="font-size:36px">' + (voyage.emoji || "🌍") + '</div>' +
+    '<div style="flex:1">' +
+      '<div style="font-size:14px;font-weight:700">' + voyage.destination + '</div>' +
+      '<div style="font-size:12px;opacity:0.6">' + (voyage.dates || "") + '</div>' +
+      '<div style="font-size:11px;opacity:0.4">' + (voyage.statut || "") + '</div>' +
+    '</div>' +
+  '</div>';
+}
+
+function ajouterVoyage() {
+  afficherInput("Destination", "Ex: Japon, Bretagne...", "", function(destination) {
+    afficherInputOptional("Dates (optionnel)", "Ex: 15-25 juin 2026", function(dates) {
+      afficherInputOptional("Emoji du voyage (optionnel)", "Ex: 🗼 🏯 🌸", function(emoji) {
+        afficherMenuContextuel("Statut du voyage", [
+          { label: "📅 En cours de planification", action: function() { _sauvegarderVoyage(destination, dates, emoji, "planifié"); } },
+          { label: "✈️ Voyage en cours", action: function() { _sauvegarderVoyage(destination, dates, emoji, "en cours"); } },
+          { label: "✅ Voyage passé", action: function() { _sauvegarderVoyage(destination, dates, emoji, "passé"); } }
+        ]);
+      });
+    });
+  });
+}
+
+function _sauvegarderVoyage(destination, dates, emoji, statut) {
+  const voyages = getVoyages();
+  voyages.unshift({
+    destination: destination,
+    dates: dates || null,
+    emoji: emoji || "🌍",
+    statut: statut,
+    notes: "",
+    checklist: [],
+    budget: null,
+    idees: [],
+    date: new Date().toLocaleDateString("fr-FR")
+  });
+  sauvegarderVoyages(voyages);
+  showToast("🌍 " + destination + " ajouté !");
+  renderVoyages();
+}
+
+function renderListeVoyages(filtre) {
+  currentPage = "voyages";
+  const app = document.getElementById("app");
+  const voyages = getVoyages();
+  const liste = voyages.filter(function(v) { return v.statut === filtre; });
+
+  app.innerHTML =
+    '<div class="header">' +
+      '<button onclick="renderVoyages()" style="background:rgba(255,255,255,0.15);border:none;color:white;padding:8px 16px;border-radius:20px;font-size:14px;cursor:pointer;margin-bottom:12px;">← Retour</button>' +
+      '<div class="name" style="font-size:26px">' + (filtre === "planifié" ? "📅 Planifiés" : "✅ Passés") + '</div>' +
+    '</div>' +
+    (liste.length === 0 ?
+      '<div class="card" style="text-align:center;padding:40px;opacity:0.6">Aucun voyage ici 🌍</div>' :
+      '<div class="card">' + liste.map(function(v) { return voyageMiniCard(v, voyages.indexOf(v)); }).join("") + '</div>'
+    ) +
+    '<div style="height:20px"></div>' +
+    buildNav("plus");
+  lucide.createIcons();
+}
+
+function renderDetailVoyage(index) {
+  currentPage = "voyages";
+  const app = document.getElementById("app");
+  const voyages = getVoyages();
+  const voyage = voyages[index];
+  if (!voyage) return;
+
+  app.innerHTML =
+    '<div class="header">' +
+      '<button onclick="renderVoyages()" style="background:rgba(255,255,255,0.15);border:none;color:white;padding:8px 16px;border-radius:20px;font-size:14px;cursor:pointer;margin-bottom:12px;">← Retour</button>' +
+      '<div style="font-size:48px;margin-bottom:4px">' + (voyage.emoji || "🌍") + '</div>' +
+      '<div class="name" style="font-size:26px">' + voyage.destination + '</div>' +
+      '<div class="date">' + (voyage.dates || "") + '</div>' +
+    '</div>' +
+
+    '<div style="display:flex;gap:8px;padding:0 16px 8px;overflow-x:auto">' +
+      ['planifié', 'en cours', 'passé'].map(function(s) {
+        return '<button onclick="changerStatutVoyage(' + index + ',\'' + s + '\')" class="filtre-btn ' + (voyage.statut === s ? "actif" : "") + '">' + s + '</button>';
+      }).join("") +
+    '</div>' +
+
+    '<div class="card">' +
+      '<div class="word-title"><i data-lucide="file-text"></i> Notes</div>' +
+      '<textarea id="notes-voyage" placeholder="Idées, adresses, conseils..." style="width:100%;background:rgba(255,255,255,0.08);border:1px solid rgba(255,255,255,0.15);border-radius:12px;padding:12px;color:white;font-size:14px;outline:none;font-family:var(--font);min-height:100px;resize:none;margin-top:8px">' + (voyage.notes || "") + '</textarea>' +
+      '<button onclick="sauvegarderNotesVoyage(' + index + ')" style="width:100%;background:rgba(255,255,255,0.1);border:none;color:white;padding:10px;border-radius:12px;font-size:13px;cursor:pointer;margin-top:8px;">💾 Sauvegarder</button>' +
+    '</div>' +
+
+    '<div class="card">' +
+      '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">' +
+        '<div class="word-title" style="margin:0"><i data-lucide="check-square"></i> Checklist</div>' +
+        '<button onclick="ajouterChecklistVoyage(' + index + ')" style="background:rgba(255,255,255,0.15);border:none;color:white;padding:6px 12px;border-radius:10px;font-size:12px;cursor:pointer;">+ Ajouter</button>' +
+      '</div>' +
+      (voyage.checklist && voyage.checklist.length > 0 ?
+        voyage.checklist.map(function(item, ci) {
+          return '<div style="display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid rgba(255,255,255,0.08)">' +
+            '<button onclick="toggleChecklistVoyage(' + index + ',' + ci + ')" style="width:22px;height:22px;border-radius:50%;border:2px solid ' + (item.fait ? "#7c6af7" : "rgba(255,255,255,0.4)") + ';background:' + (item.fait ? "linear-gradient(135deg,#7c6af7,#f953c6)" : "none") + ';cursor:pointer;flex-shrink:0;display:flex;align-items:center;justify-content:center;color:white;font-size:12px">' + (item.fait ? "✓" : "") + '</button>' +
+            '<div style="font-size:14px;' + (item.fait ? "opacity:0.5;text-decoration:line-through" : "") + '">' + item.texte + '</div>' +
+          '</div>';
+        }).join("") :
+        '<div style="opacity:0.6;font-size:14px">Aucun élément — ajoutes-en !</div>'
+      ) +
+      '<button onclick="genererChecklistIA(' + index + ')" style="width:100%;background:rgba(255,255,255,0.08);border:none;color:white;padding:10px;border-radius:12px;font-size:13px;cursor:pointer;margin-top:10px;">✨ Générer checklist avec IA</button>' +
+    '</div>' +
+
+    '<div class="card">' +
+      '<div class="word-title"><i data-lucide="lightbulb"></i> Idées & activités</div>' +
+      '<button onclick="ajouterIdeeVoyage(' + index + ')" style="width:100%;background:rgba(255,255,255,0.1);border:1px dashed rgba(255,255,255,0.3);color:white;padding:10px;border-radius:12px;font-size:13px;cursor:pointer;margin-bottom:8px;">+ Ajouter une idée</button>' +
+      (voyage.idees && voyage.idees.length > 0 ?
+        voyage.idees.map(function(idee) {
+          return '<div style="padding:8px 0;border-bottom:1px solid rgba(255,255,255,0.08);font-size:14px">💡 ' + idee + '</div>';
+        }).join("") : ""
+      ) +
+    '</div>' +
+
+    '<div style="height:20px"></div>' +
+    buildNav("plus");
+  lucide.createIcons();
+}
+
+function sauvegarderNotesVoyage(index) {
+  const input = document.getElementById("notes-voyage");
+  if (!input) return;
+  const voyages = getVoyages();
+  voyages[index].notes = input.value;
+  sauvegarderVoyages(voyages);
+  showToast("💾 Notes sauvegardées !");
+}
+
+function changerStatutVoyage(index, statut) {
+  const voyages = getVoyages();
+  voyages[index].statut = statut;
+  sauvegarderVoyages(voyages);
+  renderDetailVoyage(index);
+}
+
+function ajouterChecklistVoyage(index) {
+  afficherInput("Élément à ajouter", "Ex: Passeport, Adaptateur...", "", function(texte) {
+    const voyages = getVoyages();
+    if (!voyages[index].checklist) voyages[index].checklist = [];
+    voyages[index].checklist.push({ texte: texte, fait: false });
+    sauvegarderVoyages(voyages);
+    renderDetailVoyage(index);
+  });
+}
+
+function toggleChecklistVoyage(index, itemIndex) {
+  const voyages = getVoyages();
+  voyages[index].checklist[itemIndex].fait = !voyages[index].checklist[itemIndex].fait;
+  sauvegarderVoyages(voyages);
+  renderDetailVoyage(index);
+}
+
+function ajouterIdeeVoyage(index) {
+  afficherInput("Idée ou activité", "Ex: Visiter le marché...", "", function(idee) {
+    const voyages = getVoyages();
+    if (!voyages[index].idees) voyages[index].idees = [];
+    voyages[index].idees.unshift(idee);
+    sauvegarderVoyages(voyages);
+    renderDetailVoyage(index);
+  });
+}
+
+async function genererChecklistIA(index) {
+  const voyage = getVoyages()[index];
+  showToast("✨ L'IA génère ta checklist...");
+  try {
+    const res = await fetch("https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=" + KEYS.gemini, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        contents: [{ parts: [{ text: "Génère une checklist de voyage en JSON uniquement sans markdown. Format: [\"item1\",\"item2\",...]. Destination: " + voyage.destination + ". Génère 10-15 éléments essentiels. Réponds UNIQUEMENT avec le tableau JSON." }] }]
+      })
+    });
+    const data = await res.json();
+    const raw = data.candidates[0].content.parts[0].text.replace(/```json|```/g, "").trim();
+    const items = JSON.parse(raw);
+    const voyages = getVoyages();
+    if (!voyages[index].checklist) voyages[index].checklist = [];
+    items.forEach(function(item) {
+      voyages[index].checklist.push({ texte: item, fait: false });
+    });
+    sauvegarderVoyages(voyages);
+    showToast("✅ Checklist générée !");
+    renderDetailVoyage(index);
+  } catch(e) {
+    showToast("❌ Erreur, réessaie !");
+  }
+}
+
+function menuVoyage(index) {
+  const voyages = getVoyages();
+  const voyage = voyages[index];
+  afficherMenuContextuel(voyage.destination, [
+    { label: "🌍 Voir le détail", action: function() { renderDetailVoyage(index); } },
+    { label: "✏️ Renommer", action: function() {
+      afficherInput("Nouvelle destination", "", voyage.destination, function(nouveau) {
+        voyages[index].destination = nouveau;
+        sauvegarderVoyages(voyages);
+        renderVoyages();
+      });
+    }},
+    { label: "🗑️ Supprimer", action: function() {
+      voyages.splice(index, 1);
+      sauvegarderVoyages(voyages);
+      showToast("🗑️ Voyage supprimé");
+      renderVoyages();
+    }, danger: true }
+  ]);
+}
+
+async function suggestionVoyageIA() {
+  showToast("✨ L'IA cherche une destination...");
+  try {
+    const voyages = getVoyages();
+    const passes = voyages.filter(function(v) { return v.statut === "passé"; }).slice(0, 5);
+    const contexte = passes.length > 0 ?
+      "Destinations déjà visitées : " + passes.map(function(v) { return v.destination; }).join(", ") :
+      "Aucun voyage passé";
+    const res = await fetch("https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=" + KEYS.gemini, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        contents: [{ parts: [{ text: "Tu es un conseiller voyage pour Solène qui aime l'exploration et l'aventure. " + contexte + ". Suggère UNE destination originale avec le nom du lieu et 2-3 phrases sur pourquoi c'est fait pour elle. Réponds en français." }] }]
+      })
+    });
+    const data = await res.json();
+    const suggestion = data.candidates[0].content.parts[0].text.trim();
+    afficherMenuContextuel("✨ Suggestion voyage", [
+      { label: "📅 Ajouter à mes voyages", action: function() {
+        afficherInput("Destination", "", "", function(dest) {
+          _sauvegarderVoyage(dest, null, "🌍", "planifié");
+        });
+      }},
+      { label: "🔄 Autre suggestion", action: function() { suggestionVoyageIA(); } }
+    ]);
+    setTimeout(function() {
+      const panel = document.querySelector("#ctx_action_0")?.closest("div[style*='fixed']");
+      if (panel) {
+        const div = document.createElement("div");
+        div.style.cssText = "font-size:14px;line-height:1.6;padding:12px 0;opacity:0.9;color:white";
+        div.textContent = suggestion;
+        const firstBtn = panel.querySelector("button");
+        if (firstBtn) panel.insertBefore(div, firstBtn);
+      }
+    }, 100);
+  } catch(e) {
+    showToast("❌ Erreur, réessaie !");
+  }
 }
 
 function renderLectures() {
