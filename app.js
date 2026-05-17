@@ -520,6 +520,7 @@ function startLongPress(type, index) {
     if (type === "programme") afficherMenuProgramme(index);
     else if (type === "seance") afficherMenuSeance(index);
     else if (type === "sortie") menuSortie(index);
+    else if (type === "defipersonnel") menuDefiPersonnel(index);
     else if (type === "voyage") menuVoyage(index);
     else if (type === "livre") menuLivre(index);
     else if (type.startsWith("citationlivre_")) {
@@ -4673,14 +4674,341 @@ function nettoyerTachesFaites() {
 }
 
 function renderDefis() {
-currentPage = "defis";
-updateAIContext();
-renderStub("Défis 🏆", "Tes défis personnels — bientôt !", "renderMenu()");
+  currentPage = "defis";
+  updateAIContext();
+  const app = document.getElementById("app");
+  const defisPerso = getDefisPersonnels();
+  const enCours = defisPerso.filter(function(d) { return d.statut === "en cours"; });
+  const termines = defisPerso.filter(function(d) { return d.statut === "terminé"; });
+
+  app.innerHTML =
+    '<div class="header">' +
+      '<button onclick="renderMenu()" style="background:rgba(255,255,255,0.15);border:none;color:white;padding:8px 16px;border-radius:20px;font-size:14px;cursor:pointer;margin-bottom:12px;">← Retour</button>' +
+      '<div style="display:flex;justify-content:space-between;align-items:center">' +
+        '<div class="name" style="font-size:28px">Défis 🏆</div>' +
+        '<button onclick="ajouterDefiPersonnel()" style="background:linear-gradient(135deg,#7c6af7,#f953c6);border:none;color:white;padding:10px 16px;border-radius:14px;font-size:13px;font-weight:600;cursor:pointer;">+ Défi</button>' +
+      '</div>' +
+    '</div>' +
+
+    '<div class="card">' +
+      '<div class="summary-grid">' +
+        '<div class="summary-item"><div class="value">' + enCours.length + '</div><div class="label">En cours</div></div>' +
+        '<div class="summary-item"><div class="value">' + termines.length + '</div><div class="label">Terminés</div></div>' +
+        '<div class="summary-item"><div class="value">' + getPointsCourse() + '</div><div class="label">Pts course</div></div>' +
+        '<div class="summary-item"><div class="value">' + defisPerso.length + '</div><div class="label">Total</div></div>' +
+      '</div>' +
+    '</div>' +
+
+    '<div style="padding:0 16px 8px;display:flex;gap:10px">' +
+      '<button onclick="ajouterDefiPersonnel()" style="flex:1;background:rgba(255,255,255,0.15);border:none;color:white;padding:12px;border-radius:14px;font-size:13px;cursor:pointer;">✏️ Créer un défi</button>' +
+      '<button onclick="genererDefiPersonnelIA()" style="flex:1;background:rgba(255,255,255,0.15);border:none;color:white;padding:12px;border-radius:14px;font-size:13px;cursor:pointer;">✨ Défi IA</button>' +
+    '</div>' +
+
+    (enCours.length > 0 ?
+      '<div class="card">' +
+        '<div class="word-title"><i data-lucide="zap"></i> En cours</div>' +
+        enCours.map(function(d) {
+          const index = defisPerso.indexOf(d);
+          return defiCard(d, index);
+        }).join("") +
+      '</div>' : ""
+    ) +
+
+    (termines.length > 0 ?
+      '<div class="card">' +
+        '<div class="word-title"><i data-lucide="check-circle"></i> Terminés 🎉</div>' +
+        termines.map(function(d) {
+          const index = defisPerso.indexOf(d);
+          return defiCard(d, index);
+        }).join("") +
+      '</div>' : ""
+    ) +
+
+    (defisPerso.length === 0 ?
+      '<div class="card" style="text-align:center;padding:40px;opacity:0.6">Aucun défi — lance-toi ! 🏆</div>' : ""
+    ) +
+
+    '<div style="height:20px"></div>' +
+    buildNav("plus");
+  lucide.createIcons();
 }
+
+function getDefisPersonnels() {
+  return JSON.parse(localStorage.getItem("defis_personnels") || "[]");
+}
+
+function sauvegarderDefisPersonnels(defis) {
+  localStorage.setItem("defis_personnels", JSON.stringify(defis));
+}
+
+function defiCard(defi, index) {
+  return '<div style="padding:12px 0;border-bottom:1px solid rgba(255,255,255,0.08);cursor:pointer;user-select:none" ' +
+    'oncontextmenu="event.preventDefault();menuDefiPersonnel(' + index + ')" ' +
+    'ontouchstart="startLongPress(\'defipersonnel\',' + index + ')" ' +
+    'ontouchend="cancelLongPress()" ' +
+    'ontouchmove="cancelLongPress()">' +
+    '<div style="display:flex;justify-content:space-between;align-items:flex-start">' +
+      '<div style="flex:1">' +
+        '<div style="font-size:14px;font-weight:600;' + (defi.statut === "terminé" ? "text-decoration:line-through;opacity:0.5" : "") + '">' + defi.nom + '</div>' +
+        (defi.description ? '<div style="font-size:12px;opacity:0.6;margin-top:2px">' + defi.description + '</div>' : '') +
+        (defi.deadline ? '<div style="font-size:11px;opacity:0.5;margin-top:2px">📅 ' + defi.deadline + '</div>' : '') +
+      '</div>' +
+      '<div style="font-size:11px;padding:3px 10px;border-radius:10px;background:' + (defi.statut === "terminé" ? "rgba(100,200,100,0.3)" : "rgba(124,106,247,0.3)") + ';flex-shrink:0;margin-left:8px">' + (defi.statut || "en cours") + '</div>' +
+    '</div>' +
+  '</div>';
+}
+
+function ajouterDefiPersonnel() {
+  afficherInput("Nom du défi", "Ex: Faire 30 jours de yoga...", "", function(nom) {
+    afficherInputOptional("Description (optionnel)", "Comment tu vas t'y prendre ?", function(desc) {
+      afficherInputOptional("Deadline (optionnel)", "Ex: 30/06/2026", function(deadline) {
+        const defis = getDefisPersonnels();
+        defis.unshift({
+          nom: nom,
+          description: desc || null,
+          deadline: deadline || null,
+          statut: "en cours",
+          date: new Date().toLocaleDateString("fr-FR")
+        });
+        sauvegarderDefisPersonnels(defis);
+        showToast("🏆 Défi ajouté !");
+        renderDefis();
+      });
+    });
+  });
+}
+
+async function genererDefiPersonnelIA() {
+  showToast("✨ L'IA génère un défi...");
+  try {
+    const res = await fetch("https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=" + KEYS.gemini, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        contents: [{ parts: [{ text: "Génère un défi personnel motivant pour Solène qui aime le sport, la créativité, les voyages et la lecture. Réponds UNIQUEMENT avec un JSON : {\"nom\":\"string\",\"description\":\"string court\"}. Le défi doit être réalisable en 30 jours max." }] }]
+      })
+    });
+    const data = await res.json();
+    const raw = data.candidates[0].content.parts[0].text.replace(/```json|```/g, "").trim();
+    const defi = JSON.parse(raw);
+    afficherMenuContextuel("✨ " + defi.nom, [
+      { label: "➕ Ajouter ce défi", action: function() {
+        const defis = getDefisPersonnels();
+        defis.unshift({ nom: defi.nom, description: defi.description, statut: "en cours", date: new Date().toLocaleDateString("fr-FR") });
+        sauvegarderDefisPersonnels(defis);
+        showToast("🏆 Défi ajouté !");
+        renderDefis();
+      }},
+      { label: "🔄 Autre défi", action: function() { genererDefiPersonnelIA(); } }
+    ]);
+  } catch(e) {
+    showToast("❌ Erreur, réessaie !");
+  }
+}
+
+function menuDefiPersonnel(index) {
+  const defis = getDefisPersonnels();
+  const defi = defis[index];
+  afficherMenuContextuel(defi.nom, [
+    { label: "✅ Marquer comme terminé", action: function() {
+      defis[index].statut = "terminé";
+      sauvegarderDefisPersonnels(defis);
+      showToast("🎉 Défi terminé !");
+      renderDefis();
+    }},
+    { label: "↩️ Remettre en cours", action: function() {
+      defis[index].statut = "en cours";
+      sauvegarderDefisPersonnels(defis);
+      renderDefis();
+    }},
+    { label: "🗑️ Supprimer", action: function() {
+      defis.splice(index, 1);
+      sauvegarderDefisPersonnels(defis);
+      showToast("🗑️ Défi supprimé");
+      renderDefis();
+    }, danger: true }
+  ]);
+}
+
 function renderJournal() {
-currentPage = "journal";
-updateAIContext();
-renderStub("Journal 📓", "Ton espace d'écriture — bientôt !", "renderMenu()");
+  currentPage = "journal";
+  updateAIContext();
+  const app = document.getElementById("app");
+  const entrees = JSON.parse(localStorage.getItem("journal_entrees") || "[]");
+  const today = new Date().toDateString();
+  const entreeAujourdhui = entrees.find(function(e) { return new Date(e.dateISO).toDateString() === today; });
+
+  app.innerHTML =
+    '<div class="header">' +
+      '<button onclick="renderMenu()" style="background:rgba(255,255,255,0.15);border:none;color:white;padding:8px 16px;border-radius:20px;font-size:14px;cursor:pointer;margin-bottom:12px;">← Retour</button>' +
+      '<div class="name">Journal 📓</div>' +
+      '<div class="date">' + entrees.length + ' entrées</div>' +
+    '</div>' +
+
+    '<div style="display:flex;gap:8px;padding:0 16px 8px;overflow-x:auto">' +
+      '<button onclick="renderJournal()" class="filtre-btn actif" style="white-space:nowrap">📓 Accueil</button>' +
+      '<button onclick="renderToutesEntrees()" class="filtre-btn" style="white-space:nowrap">📖 Toutes les entrées</button>' +
+      '<button onclick="renderEcriture()" class="filtre-btn" style="white-space:nowrap">✍️ Écrire</button>' +
+    '</div>' +
+
+    // Écriture du jour
+    '<div class="card">' +
+      '<div class="word-title"><i data-lucide="feather"></i> ' + (entreeAujourdhui ? "Tu as déjà écrit aujourd\'hui ✨" : "Écris quelque chose aujourd\'hui") + '</div>' +
+      '<div style="font-size:13px;opacity:0.6;font-style:italic;margin:8px 0">"' + getPromptDuJour() + '"</div>' +
+      '<button onclick="renderEcriture(getPromptDuJour())" style="width:100%;background:linear-gradient(135deg,#7c6af7,#f953c6);border:none;color:white;padding:12px;border-radius:14px;font-size:14px;font-weight:600;cursor:pointer;">' + (entreeAujourdhui ? "✏️ Continuer à écrire" : "✍️ Commencer à écrire") + '</button>' +
+    '</div>' +
+
+    // Stats
+    '<div class="card">' +
+      '<div class="summary-grid">' +
+        '<div class="summary-item"><div class="value">' + entrees.length + '</div><div class="label">Entrées</div></div>' +
+        '<div class="summary-item"><div class="value">' + getStreakJournal() + 'j</div><div class="label">Streak</div></div>' +
+        '<div class="summary-item"><div class="value">' + getMotsEcrits() + '</div><div class="label">Mots écrits</div></div>' +
+        '<div class="summary-item"><div class="value">' + getMoisActif() + '</div><div class="label">Mois actif</div></div>' +
+      '</div>' +
+    '</div>' +
+
+    // Dernières entrées
+    (entrees.length > 0 ?
+      '<div class="card">' +
+        '<div class="word-title"><i data-lucide="clock"></i> Récentes</div>' +
+        entrees.slice(0, 3).map(function(e, i) {
+          return '<div style="padding:10px 0;border-bottom:1px solid rgba(255,255,255,0.08);cursor:pointer;user-select:none" ' +
+            'onclick="lireEntree(' + i + ')" ' +
+            'oncontextmenu="event.preventDefault();menuEntreeJournal(' + i + ')" ' +
+            'ontouchstart="startLongPress(\'journal\',' + i + ')" ' +
+            'ontouchend="cancelLongPress()" ' +
+            'ontouchmove="cancelLongPress()">' +
+            '<div style="font-size:12px;opacity:0.5;margin-bottom:4px">' + e.date + '</div>' +
+            '<div style="font-size:14px;line-height:1.5;opacity:0.9">' + e.texte.substring(0, 120) + (e.texte.length > 120 ? "..." : "") + '</div>' +
+          '</div>';
+        }).join("") +
+        (entrees.length > 3 ? '<div style="font-size:13px;opacity:0.6;margin-top:8px;cursor:pointer;text-align:center" onclick="renderToutesEntrees()">Voir toutes les entrées →</div>' : '') +
+      '</div>' : ""
+    ) +
+
+    '<div style="height:20px"></div>' +
+    buildNav("plus");
+  lucide.createIcons();
+}
+
+function getStreakJournal() {
+  const entrees = JSON.parse(localStorage.getItem("journal_entrees") || "[]");
+  if (entrees.length === 0) return 0;
+  let streak = 0;
+  const aujourd = new Date(); aujourd.setHours(0,0,0,0);
+  for (var i = 0; i < 30; i++) {
+    const jour = new Date(aujourd); jour.setDate(aujourd.getDate() - i);
+    const trouve = entrees.find(function(e) {
+      return new Date(e.dateISO).toDateString() === jour.toDateString();
+    });
+    if (trouve) streak++;
+    else if (i > 0) break;
+  }
+  return streak;
+}
+
+function getMotsEcrits() {
+  const entrees = JSON.parse(localStorage.getItem("journal_entrees") || "[]");
+  const total = entrees.reduce(function(t, e) {
+    return t + e.texte.split(" ").length;
+  }, 0);
+  return total > 999 ? (total/1000).toFixed(1) + "k" : total;
+}
+
+function getMoisActif() {
+  const entrees = JSON.parse(localStorage.getItem("journal_entrees") || "[]");
+  if (entrees.length === 0) return "--";
+  const mois = {};
+  entrees.forEach(function(e) {
+    const m = new Date(e.dateISO).toLocaleDateString("fr-FR", { month: "long" });
+    mois[m] = (mois[m] || 0) + 1;
+  });
+  return Object.keys(mois).sort(function(a,b){ return mois[b]-mois[a]; })[0] || "--";
+}
+
+function lireEntree(index) {
+  const entrees = JSON.parse(localStorage.getItem("journal_entrees") || "[]");
+  const entree = entrees[index];
+  if (!entree) return;
+  const app = document.getElementById("app");
+  app.innerHTML =
+    '<div class="header">' +
+      '<button onclick="renderJournal()" style="background:rgba(255,255,255,0.15);border:none;color:white;padding:8px 16px;border-radius:20px;font-size:14px;cursor:pointer;margin-bottom:12px;">← Retour</button>' +
+      '<div class="name" style="font-size:22px">📓 ' + entree.date + '</div>' +
+    '</div>' +
+    '<div class="card">' +
+      '<div style="font-size:15px;line-height:1.8;white-space:pre-wrap">' + entree.texte + '</div>' +
+    '</div>' +
+    '<div style="padding:0 16px;display:flex;gap:10px">' +
+      '<button onclick="modifierEntree(' + index + ')" style="flex:1;background:rgba(255,255,255,0.15);border:none;color:white;padding:12px;border-radius:14px;font-size:14px;cursor:pointer;">✏️ Modifier</button>' +
+      '<button onclick="menuEntreeJournal(' + index + ')" style="background:rgba(255,100,100,0.2);border:none;color:white;padding:12px 16px;border-radius:14px;font-size:14px;cursor:pointer;">⋯</button>' +
+    '</div>' +
+    '<div style="height:20px"></div>' +
+    buildNav("plus");
+  lucide.createIcons();
+}
+
+function modifierEntree(index) {
+  const entrees = JSON.parse(localStorage.getItem("journal_entrees") || "[]");
+  const entree = entrees[index];
+  const app = document.getElementById("app");
+  app.innerHTML =
+    '<div class="header">' +
+      '<button onclick="renderJournal()" style="background:rgba(255,255,255,0.15);border:none;color:white;padding:8px 16px;border-radius:20px;font-size:14px;cursor:pointer;margin-bottom:12px;">← Retour</button>' +
+      '<div class="name" style="font-size:22px">✏️ Modifier</div>' +
+    '</div>' +
+    '<div class="card">' +
+      '<textarea id="modifier-input" style="width:100%;background:rgba(255,255,255,0.08);border:1px solid rgba(255,255,255,0.15);border-radius:14px;padding:14px;color:white;font-size:15px;outline:none;font-family:var(--font);min-height:300px;resize:none;line-height:1.6">' + entree.texte + '</textarea>' +
+      '<button onclick="sauvegarderModification(' + index + ')" style="width:100%;background:linear-gradient(135deg,#7c6af7,#f953c6);border:none;color:white;padding:14px;border-radius:14px;font-size:15px;font-weight:600;cursor:pointer;margin-top:10px;">💾 Sauvegarder</button>' +
+    '</div>' +
+    '<div style="height:20px"></div>' +
+    buildNav("plus");
+  lucide.createIcons();
+}
+
+function sauvegarderModification(index) {
+  const input = document.getElementById("modifier-input");
+  if (!input) return;
+  const entrees = JSON.parse(localStorage.getItem("journal_entrees") || "[]");
+  entrees[index].texte = input.value.trim();
+  localStorage.setItem("journal_entrees", JSON.stringify(entrees));
+  showToast("💾 Modifié !");
+  renderJournal();
+}
+
+function renderToutesEntrees() {
+  currentPage = "journal";
+  const app = document.getElementById("app");
+  const entrees = JSON.parse(localStorage.getItem("journal_entrees") || "[]");
+
+  app.innerHTML =
+    '<div class="header">' +
+      '<button onclick="renderJournal()" style="background:rgba(255,255,255,0.15);border:none;color:white;padding:8px 16px;border-radius:20px;font-size:14px;cursor:pointer;margin-bottom:12px;">← Retour</button>' +
+      '<div class="name" style="font-size:26px">Toutes les entrées 📖</div>' +
+      '<div class="date">' + entrees.length + ' entrées</div>' +
+    '</div>' +
+
+    (entrees.length === 0 ?
+      '<div class="card" style="text-align:center;padding:40px;opacity:0.6">Aucune entrée pour l\'instant ✍️</div>' :
+      '<div class="card">' +
+        entrees.map(function(e, i) {
+          return '<div style="padding:12px 0;border-bottom:1px solid rgba(255,255,255,0.08);cursor:pointer;user-select:none" ' +
+            'onclick="lireEntree(' + i + ')" ' +
+            'oncontextmenu="event.preventDefault();menuEntreeJournal(' + i + ')" ' +
+            'ontouchstart="startLongPress(\'journal\',' + i + ')" ' +
+            'ontouchend="cancelLongPress()" ' +
+            'ontouchmove="cancelLongPress()">' +
+            '<div style="font-size:12px;opacity:0.5;margin-bottom:4px">' + e.date + '</div>' +
+            '<div style="font-size:14px;line-height:1.5;opacity:0.9">' + e.texte.substring(0, 100) + (e.texte.length > 100 ? "..." : "") + '</div>' +
+          '</div>';
+        }).join("") +
+      '</div>'
+    ) +
+
+    '<div style="height:20px"></div>' +
+    buildNav("plus");
+  lucide.createIcons();
 }
 
 function renderStub(titre, desc, retour) {
